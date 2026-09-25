@@ -2,6 +2,7 @@ package runner
 
 import (
 	"sync"
+	"time"
 
 	"agenteval/internal/eval"
 	"agenteval/internal/scorer"
@@ -43,7 +44,9 @@ func execute(cases []eval.Case, repeats, concurrency int, tgt target.Target, sco
 
 func runOne(cs eval.Case, repeat int, tgt target.Target, scorers []scorer.Scorer) store.ResultRow {
 	row := store.ResultRow{CaseID: cs.ID, Repeat: repeat}
+	start := time.Now()
 	tr, err := tgt.Run(cs)
+	row.DurationMS = float64(time.Since(start).Microseconds()) / 1000
 	if err != nil {
 		row.Error = err.Error()
 		row.Trajectory = tr

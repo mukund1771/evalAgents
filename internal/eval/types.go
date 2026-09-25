@@ -30,11 +30,12 @@ type Step struct {
 	IsError   bool       `json:"is_error,omitempty"`
 }
 
-// Metrics are recorded for inspection. Deterministic scorers do not read them.
+// Metrics are what the target reports about itself. Only the target knows its
+// token count and dollar cost. Wall-clock latency is measured by the harness and
+// lives on the result row, not here. Deterministic scorers do not read any of it.
 type Metrics struct {
-	Tokens    int     `json:"tokens,omitempty"`
-	Cost      float64 `json:"cost,omitempty"`
-	LatencyMS float64 `json:"latency_ms,omitempty"`
+	Tokens int     `json:"tokens,omitempty"`
+	Cost   float64 `json:"cost,omitempty"`
 }
 
 // Trajectory is the primary artifact. Agent evals score this, not a final string.

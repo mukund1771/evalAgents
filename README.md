@@ -21,7 +21,7 @@ That command replays recorded trajectories for a small support agent, prints a p
 ./agenteval diff <good_run_id> <bad_run_id>
 ```
 
-Run ids are the first column of `./agenteval list`.
+Run ids are the first column of `./agenteval list`. Every subcommand takes `--root` if you want the store somewhere other than `./.agenteval`.
 
 To execute the example agent instead of the cassette:
 
@@ -57,7 +57,7 @@ Two targets:
 
 Cassettes are those trajectory files (`{case_id}.json`), not an HTTP recording. A missing cassette is an error.
 
-Runs are immutable JSONL under `.agenteval/runs/<run_id>/` (`manifest.json`, `results.jsonl`, `summary.json`). No SQLite, so the build does not need cgo. `--repeats N` reports pass^1 and pass^k using the tau-bench estimator `C(c,k)/C(n,k)`. `diff` and `--baseline` exit 1 when a case that passed now fails, or a scorer mean drops. New cases are reported and are not regressions.
+Runs are immutable JSONL under `.agenteval/runs/<run_id>/` (`manifest.json`, `results.jsonl`, `summary.json`). No SQLite, so the build does not need cgo. Each result row carries `duration_ms` measured by the harness around the target call, including a failed one. Tokens and cost are whatever the target reported about itself, because only the target knows them; `agenteval show <run> --case <id>` prints both, and labels the second kind as reported. `--repeats N` reports pass^1 and pass^k using the tau-bench estimator `C(c,k)/C(n,k)`. `diff` and `--baseline` exit 1 when a case that passed now fails, or a scorer mean drops. New cases are reported and are not regressions.
 
 `tool_call_f1` is also registered as `tool_call_accuracy`. The judge's metric is `task_completion` or `faithfulness`. Those are Lyzr's names for the same ideas: did the tool calls match, and did the task actually finish.
 
@@ -67,12 +67,17 @@ The only dependency outside the standard library is `gopkg.in/yaml.v3`, because 
 
 - A web UI or TUI.
 - SQLite or any cgo dependency.
-- A real OTLP receiver. `internal/otlp.Handler` returns 501 and is not served. A later version would accept `POST /v1/traces` and map spans onto trajectory steps.
+- An OTLP receiver. Nothing here listens on a port. Mapping `POST /v1/traces` spans onto trajectory steps is the obvious next step, and the `replay` target is the seam it would plug into.
 - Embeddings or semantic similarity.
 - A provider zoo. One OpenAI-compatible client honors `OPENAI_BASE_URL` (OpenAI, Ollama, llama.cpp, vLLM).
 - More than one LLM judge. `model_graded` is off unless a suite lists it.
 - Generating test cases. This tool scores cases. It does not invent them.
 - A scheduler. `--concurrency` is a fixed worker pool. The default is 1.
+- Retries around the target. The harness cannot know whether calling your agent twice is safe, so a target that fails is a failed case with its error recorded, not a silent second attempt. The judge is the one exception and retries once, because reasking for JSON has no side effects.
+
+## Background
+
+[docs/agent-eval-concepts.md](docs/agent-eval-concepts.md) is a map of the field: what a trajectory is, why a null score is not a zero, the difference between pass@k and pass^k, and which of these metric families the platforms below each chose. It explains the design decisions above rather than restating them.
 
 ## Prior art
 
@@ -86,7 +91,9 @@ The only dependency outside the standard library is `gopkg.in/yaml.v3`, because 
 
 ## CI
 
-`.github/workflows/ci.yml` builds the binary and runs the support suite. To gate another repo, write JUnit and fail the job on a non-zero exit:
+`.github/workflows/ci.yml` checks formatting, vets, runs the tests under `-race`, builds the binary, runs the support suite, and then asserts the gate: the recorded regression suite must exit non-zero and `diff` must name the case that broke. The feature the tool exists for is tested in CI rather than described in a README.
+
+To gate another repo, write JUnit and fail the job on a non-zero exit:
 
 ```yaml
 - run: go build -o agenteval ./cmd/agenteval

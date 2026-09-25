@@ -12,6 +12,26 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
-      - run: go test ./...
+
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - run: go test ./... -race
+
       - run: go build -o agenteval ./cmd/agenteval
+
+      # The suite passes and writes JUnit for the test UI.
       - run: ./agenteval run examples/support/suite.yaml --junit results.xml
+
+      # The gate itself: a recorded regression must fail, and diff must name it.
+      # This is the behaviour the tool exists for, so CI proves it rather than
+      # trusting the README.
+      - name: regression gate
+        run: |
+          ./agenteval run examples/support/regression/suite.yaml && {
+            echo "expected the recorded regression suite to exit non-zero"; exit 1; }
+          good=$(./agenteval list | awk 'NR>1 && $2=="support-agent" {print $1; exit}')
+          bad=$(./agenteval list | awk 'NR>1 && $2=="support-agent-regression" {print $1; exit}')
+          ./agenteval diff "$good" "$bad" && {
+            echo "expected diff to exit non-zero"; exit 1; }
+          ./agenteval diff "$bad" "$good"

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"agenteval/internal/eval"
@@ -96,7 +97,7 @@ func Environ(key, value string) []string {
 	base := os.Environ()
 	out := make([]string, 0, len(base)+1)
 	for _, e := range base {
-		if len(e) >= len(prefix) && e[:len(prefix)] == prefix {
+		if strings.HasPrefix(e, prefix) {
 			continue
 		}
 		out = append(out, e)

@@ -29,11 +29,13 @@ type Manifest struct {
 }
 
 // ResultRow is one case execution (one repeat).
+// DurationMS is wall clock measured around the target call, including a failed one.
 type ResultRow struct {
 	CaseID     string          `json:"case_id"`
 	Repeat     int             `json:"repeat"`
 	Trajectory eval.Trajectory `json:"trajectory"`
 	Scores     []eval.Score    `json:"scores"`
+	DurationMS float64         `json:"duration_ms"`
 	Error      string          `json:"error,omitempty"`
 }
 

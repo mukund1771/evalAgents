@@ -1,6 +1,10 @@
 package store
 
-import "agenteval/internal/scorer"
+import (
+	"sort"
+
+	"agenteval/internal/scorer"
+)
 
 // PassK is the tau-bench estimator: C(c, k) / C(n, k), or 0 when c < k.
 func PassK(successes, trials, k int) float64 {
@@ -125,19 +129,28 @@ func Summarize(man Manifest, rows []ResultRow, caseOrder []string) Summary {
 		for name := range a.failed {
 			cs.Failed = append(cs.Failed, name)
 		}
-		sortStrings(cs.Failed)
+		sort.Strings(cs.Failed)
 		sum.Cases = append(sum.Cases, cs)
 		p1 += cs.Pass1
 		pk += cs.PassK
 
-		names := map[string]bool{}
+		seenName := map[string]bool{}
+		var names []string
 		for name := range a.counts {
-			names[name] = true
+			if !seenName[name] {
+				seenName[name] = true
+				names = append(names, name)
+			}
 		}
 		for name := range a.skipped {
-			names[name] = true
+			if !seenName[name] {
+				seenName[name] = true
+				names = append(names, name)
+			}
 		}
-		for name := range names {
+		// Sorted, so a scorer the manifest did not list still lands in a stable column.
+		sort.Strings(names)
+		for _, name := range names {
 			if agg[name] == nil {
 				agg[name] = &ScorerAggregate{Name: name}
 				scorerOrder = append(scorerOrder, name)
@@ -170,14 +183,4 @@ func Summarize(man Manifest, rows []ResultRow, caseOrder []string) Summary {
 		sum.Passed = false
 	}
 	return sum
-}
-
-func sortStrings(s []string) {
-	for i := 1; i < len(s); i++ {
-		j := i
-		for j > 0 && s[j] < s[j-1] {
-			s[j], s[j-1] = s[j-1], s[j]
-			j--
-		}
-	}
 }

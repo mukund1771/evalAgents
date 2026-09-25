@@ -89,6 +89,10 @@ func Load(path string) (*File, error) {
 	if len(raw.Cases) == 0 {
 		return nil, fmt.Errorf("suite has no cases")
 	}
+	// Without a scorer nothing applies, and every case would silently fail.
+	if len(raw.Scorers) == 0 {
+		return nil, fmt.Errorf("suite has no scorers")
+	}
 	if err := validateTarget(raw.Target); err != nil {
 		return nil, err
 	}

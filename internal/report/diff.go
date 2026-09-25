@@ -2,6 +2,7 @@ package report
 
 import (
 	"fmt"
+	"strings"
 
 	"agenteval/internal/store"
 )
@@ -30,23 +31,25 @@ func Compare(base, cur store.Summary) Diff {
 	for _, c := range cur.Cases {
 		curCases[c.ID] = c
 	}
-	for id, prev := range baseCases {
-		next, ok := curCases[id]
+	// Iterate the stored slices, not the lookup maps: diff output feeds CI logs
+	// and a golden test, so the order has to be the same on every run.
+	for _, prev := range base.Cases {
+		next, ok := curCases[prev.ID]
 		if !ok {
-			d.Notes = append(d.Notes, fmt.Sprintf("note: case %s removed", id))
+			d.Notes = append(d.Notes, fmt.Sprintf("note: case %s removed", prev.ID))
 			continue
 		}
 		if prev.Passed && !next.Passed {
-			msg := fmt.Sprintf("regression: case %s passed and now fails", id)
+			msg := fmt.Sprintf("regression: case %s passed and now fails", prev.ID)
 			if len(next.Failed) > 0 {
-				msg += " (" + join(next.Failed) + ")"
+				msg += " (" + strings.Join(next.Failed, ", ") + ")"
 			}
 			d.Regressions = append(d.Regressions, msg)
 		}
 	}
-	for id := range curCases {
-		if _, ok := baseCases[id]; !ok {
-			d.Notes = append(d.Notes, fmt.Sprintf("note: case %s is new", id))
+	for _, next := range cur.Cases {
+		if _, ok := baseCases[next.ID]; !ok {
+			d.Notes = append(d.Notes, fmt.Sprintf("note: case %s is new", next.ID))
 		}
 	}
 	baseSc := map[string]store.ScorerAggregate{}
@@ -63,15 +66,4 @@ func Compare(base, cur store.Summary) Diff {
 		}
 	}
 	return d
-}
-
-func join(parts []string) string {
-	out := ""
-	for i, p := range parts {
-		if i > 0 {
-			out += ", "
-		}
-		out += p
-	}
-	return out
 }

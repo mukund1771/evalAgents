@@ -3,6 +3,7 @@ package runner
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"agenteval/internal/eval"
@@ -175,31 +176,18 @@ func filterCases(cases []eval.Case, filter string) []eval.Case {
 	}
 	var out []eval.Case
 	for _, c := range cases {
-		if contains(c.ID, filter) {
+		if strings.Contains(c.ID, filter) {
 			out = append(out, c)
 			continue
 		}
 		for _, tag := range c.Tags {
-			if contains(tag, filter) {
+			if strings.Contains(tag, filter) {
 				out = append(out, c)
 				break
 			}
 		}
 	}
 	return out
-}
-
-func contains(s, sub string) bool {
-	return len(sub) == 0 || (len(s) >= len(sub) && (s == sub || len(sub) > 0 && indexOf(s, sub) >= 0))
-}
-
-func indexOf(s, sub string) int {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return i
-		}
-	}
-	return -1
 }
 
 func sanitize(v string) string {

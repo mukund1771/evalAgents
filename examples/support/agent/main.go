@@ -122,6 +122,6 @@ func build(id, user string, s spec) eval.Trajectory {
 		CaseID:      id,
 		Steps:       steps,
 		FinalOutput: s.final,
-		Metrics:     eval.Metrics{Tokens: 80, LatencyMS: 12},
+		Metrics:     eval.Metrics{Tokens: 80},
 	}
 }

@@ -47,10 +47,10 @@ const usage = `agenteval — local agent evaluation
 
   agenteval run <suite.yaml> [--filter substr] [--repeats N] [--baseline id]
                              [--offline] [--record] [--json] [--junit path]
-                             [--concurrency N] [--matrix key=a,b]
-  agenteval diff <run_a> <run_b>
-  agenteval list
-  agenteval show <run_id> [--case id]
+                             [--concurrency N] [--matrix key=a,b] [--root dir]
+  agenteval diff <run_a> <run_b> [--root dir]
+  agenteval list [--root dir]
+  agenteval show <run_id> [--case id] [--root dir]
 
 Runs are written to .agenteval/runs/<run_id>/. A nil score means skipped, not zero.
 Exit 1 when a case fails or a baseline regresses.
@@ -68,6 +68,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	junit := fs.String("junit", "", "write JUnit XML to this path")
 	conc := fs.Int("concurrency", 1, "cases to run at once")
 	matrix := fs.String("matrix", "", "key=a,b env sweep for a cmd target")
+	root := fs.String("root", ".agenteval", "run store root")
 	positionals, flagArgs := splitArgs(args, map[string]bool{
 		"offline": true, "record": true, "json": true,
 	})
@@ -94,6 +95,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 		Concurrency: *conc,
 		MatrixKey:   key,
 		MatrixVals:  vals,
+		StoreRoot:   *root,
 	})
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -233,9 +235,12 @@ func cmdShow(args []string, stdout, stderr io.Writer) int {
 			continue
 		}
 		found = true
-		fmt.Fprintf(stdout, "case %s repeat %d\n", row.CaseID, row.Repeat)
+		fmt.Fprintf(stdout, "case %s repeat %d  %.1fms\n", row.CaseID, row.Repeat, row.DurationMS)
 		if row.Error != "" {
 			fmt.Fprintf(stdout, "error: %s\n", row.Error)
+		}
+		if m := row.Trajectory.Metrics; m.Tokens > 0 || m.Cost > 0 {
+			fmt.Fprintf(stdout, "target reported: %d tokens, cost %.4f\n", m.Tokens, m.Cost)
 		}
 		fmt.Fprintf(stdout, "final: %s\n", row.Trajectory.FinalOutput)
 		for _, sc := range row.Scores {
