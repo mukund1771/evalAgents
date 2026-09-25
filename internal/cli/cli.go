@@ -240,7 +240,11 @@ func cmdShow(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "error: %s\n", row.Error)
 		}
 		if m := row.Trajectory.Metrics; m.Tokens > 0 || m.Cost > 0 {
-			fmt.Fprintf(stdout, "target reported: %d tokens, cost %.4f\n", m.Tokens, m.Cost)
+			line := fmt.Sprintf("target reported: %d tokens", m.Tokens)
+			if m.Cost > 0 {
+				line += fmt.Sprintf(", cost %.4f", m.Cost)
+			}
+			fmt.Fprintln(stdout, line)
 		}
 		fmt.Fprintf(stdout, "final: %s\n", row.Trajectory.FinalOutput)
 		for _, sc := range row.Scores {
