@@ -1,0 +1,17 @@
+name: eval
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - run: go test ./...
+      - run: go build -o agenteval ./cmd/agenteval
+      - run: ./agenteval run examples/support/suite.yaml --junit results.xml

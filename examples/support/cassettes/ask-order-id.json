@@ -1,0 +1,18 @@
+{
+  "case_id": "ask-order-id",
+  "steps": [
+    {
+      "kind": "user",
+      "content": "I want a refund."
+    },
+    {
+      "kind": "final",
+      "content": "I can help with a refund. What is the order id?"
+    }
+  ],
+  "final_output": "I can help with a refund. What is the order id?",
+  "metrics": {
+    "tokens": 80,
+    "latency_ms": 12
+  }
+}

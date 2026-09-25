@@ -1,0 +1,50 @@
+{
+  "case_id": "replacement",
+  "steps": [
+    {
+      "kind": "user",
+      "content": "Replace damaged order 1004."
+    },
+    {
+      "kind": "assistant",
+      "tool_calls": [
+        {
+          "name": "lookup_order",
+          "args": {
+            "order_id": "1004"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "tool_result",
+      "content": "{\"status\":\"delivered\",\"damaged\":true}",
+      "call_id": "lookup_order"
+    },
+    {
+      "kind": "assistant",
+      "tool_calls": [
+        {
+          "name": "create_replacement",
+          "args": {
+            "order_id": "1004"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "tool_result",
+      "content": "{\"replacement_id\":\"rp-1004\"}",
+      "call_id": "create_replacement"
+    },
+    {
+      "kind": "final",
+      "content": "I've created a replacement for order 1004."
+    }
+  ],
+  "final_output": "I've created a replacement for order 1004.",
+  "metrics": {
+    "tokens": 80,
+    "latency_ms": 12
+  }
+}

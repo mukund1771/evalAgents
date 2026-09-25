@@ -1,0 +1,18 @@
+{
+  "case_id": "refund-policy",
+  "steps": [
+    {
+      "kind": "user",
+      "content": "What is your refund policy?"
+    },
+    {
+      "kind": "final",
+      "content": "Our refund policy covers damaged items within 30 days of delivery."
+    }
+  ],
+  "final_output": "Our refund policy covers damaged items within 30 days of delivery.",
+  "metrics": {
+    "tokens": 80,
+    "latency_ms": 12
+  }
+}

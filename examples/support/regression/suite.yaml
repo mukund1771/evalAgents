@@ -1,0 +1,39 @@
+name: support-agent-regression
+target:
+  kind: replay
+  dir: cassettes
+scorers:
+  - kind: contains
+  - kind: json_valid
+  - kind: tool_trajectory_exact
+  - kind: tool_call_f1
+    as: tool_call_accuracy
+  - kind: tools_succeeded
+  - kind: steps_within
+    max: 6
+  - kind: no_loop
+    max_repeats: 2
+cases:
+  - id: refund-happy
+    tags: [refund]
+    input: { user: "Refund order 1001, it arrived damaged." }
+    expected:
+      contains: refund
+      tools:
+        - { name: lookup_order, args: { order_id: "1001" } }
+        - { name: issue_refund, args: { order_id: "1001", reason: damaged } }
+  - id: order-status
+    tags: [shipping]
+    input: { user: "Where is order 1002?" }
+    expected:
+      contains: shipped
+      tools:
+        - { name: lookup_order, args: { order_id: "1002" } }
+  - id: tracking-json
+    tags: [shipping]
+    input: { user: "Return tracking for order 1002 as JSON." }
+    expected:
+      contains: 1Z999
+      json: true
+      tools:
+        - { name: lookup_order, args: { order_id: "1002" } }

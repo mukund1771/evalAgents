@@ -1,0 +1,90 @@
+name: support-agent-live
+target:
+  kind: cmd
+  command: ["go", "run", "./agent"]
+  timeout: 60s
+  cassettes: cassettes
+scorers:
+  - kind: exact_match
+  - kind: contains
+  - kind: json_valid
+  - kind: tool_trajectory_exact
+  - kind: tool_trajectory_subsequence
+  - kind: tool_call_f1
+    as: tool_call_accuracy
+  - kind: tools_succeeded
+  - kind: steps_within
+    max: 6
+  - kind: no_loop
+    max_repeats: 2
+cases:
+  - id: refund-happy
+    tags: [refund]
+    input: { user: "Refund order 1001, it arrived damaged." }
+    expected:
+      contains: refund
+      tools:
+        - { name: lookup_order, args: { order_id: "1001" } }
+        - { name: issue_refund, args: { order_id: "1001", reason: damaged } }
+  - id: order-status
+    tags: [shipping]
+    input: { user: "Where is order 1002?" }
+    expected:
+      contains: shipped
+      tools:
+        - { name: lookup_order, args: { order_id: "1002" } }
+  - id: refund-denied
+    tags: [refund, policy]
+    input: { user: "Refund order 1003." }
+    expected:
+      contains: outside the refund window
+      tools:
+        - { name: lookup_order, args: { order_id: "1003" } }
+        - { name: check_policy, args: { order_id: "1003" } }
+  - id: ask-order-id
+    tags: [refund]
+    input: { user: "I want a refund." }
+    expected:
+      contains: order id
+  - id: tracking-json
+    tags: [shipping]
+    input: { user: "Return tracking for order 1002 as JSON." }
+    expected:
+      contains: 1Z999
+      json: true
+      tools:
+        - { name: lookup_order, args: { order_id: "1002" } }
+  - id: exact-greeting
+    tags: [greeting]
+    input: { user: hi }
+    expected:
+      exact: "Hello, how can I help with your order today?"
+  - id: replacement
+    tags: [refund]
+    input: { user: "Replace damaged order 1004." }
+    expected:
+      contains: replacement
+      tools:
+        - { name: lookup_order, args: { order_id: "1004" } }
+        - { name: create_replacement, args: { order_id: "1004" } }
+  - id: cancel-order
+    tags: [order]
+    input: { user: "Cancel order 1005." }
+    expected:
+      contains: canceled
+      tools:
+        - { name: lookup_order, args: { order_id: "1005" } }
+        - { name: cancel_order, args: { order_id: "1005" } }
+  - id: address-update
+    tags: [order]
+    input: { user: "Change the address on order 1006 to 10 Main St." }
+    expected:
+      contains: address
+      tools:
+        - { name: lookup_order, args: { order_id: "1006" } }
+        - { name: update_address, args: { order_id: "1006", address: "10 Main St" } }
+  - id: refund-policy
+    tags: [policy]
+    input: { user: "What is your refund policy?" }
+    expected:
+      contains: 30 days

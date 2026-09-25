@@ -1,0 +1,50 @@
+{
+  "case_id": "refund-denied",
+  "steps": [
+    {
+      "kind": "user",
+      "content": "Refund order 1003."
+    },
+    {
+      "kind": "assistant",
+      "tool_calls": [
+        {
+          "name": "lookup_order",
+          "args": {
+            "order_id": "1003"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "tool_result",
+      "content": "{\"status\":\"delivered\",\"age_days\":90}",
+      "call_id": "lookup_order"
+    },
+    {
+      "kind": "assistant",
+      "tool_calls": [
+        {
+          "name": "check_policy",
+          "args": {
+            "order_id": "1003"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "tool_result",
+      "content": "{\"eligible\":false,\"reason\":\"outside the refund window\"}",
+      "call_id": "check_policy"
+    },
+    {
+      "kind": "final",
+      "content": "Order 1003 is outside the refund window, so I can't refund it."
+    }
+  ],
+  "final_output": "Order 1003 is outside the refund window, so I can't refund it.",
+  "metrics": {
+    "tokens": 80,
+    "latency_ms": 12
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "case_id": "address-update",
+  "steps": [
+    {
+      "kind": "user",
+      "content": "Change the address on order 1006 to 10 Main St."
+    },
+    {
+      "kind": "assistant",
+      "tool_calls": [
+        {
+          "name": "lookup_order",
+          "args": {
+            "order_id": "1006"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "tool_result",
+      "content": "{\"status\":\"processing\"}",
+      "call_id": "lookup_order"
+    },
+    {
+      "kind": "assistant",
+      "tool_calls": [
+        {
+          "name": "update_address",
+          "args": {
+            "address": "10 Main St",
+            "order_id": "1006"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "tool_result",
+      "content": "{\"updated\":true}",
+      "call_id": "update_address"
+    },
+    {
+      "kind": "final",
+      "content": "I updated the address on order 1006."
+    }
+  ],
+  "final_output": "I updated the address on order 1006.",
+  "metrics": {
+    "tokens": 80,
+    "latency_ms": 12
+  }
+}

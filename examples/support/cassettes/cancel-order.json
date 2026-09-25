@@ -1,0 +1,50 @@
+{
+  "case_id": "cancel-order",
+  "steps": [
+    {
+      "kind": "user",
+      "content": "Cancel order 1005."
+    },
+    {
+      "kind": "assistant",
+      "tool_calls": [
+        {
+          "name": "lookup_order",
+          "args": {
+            "order_id": "1005"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "tool_result",
+      "content": "{\"status\":\"processing\"}",
+      "call_id": "lookup_order"
+    },
+    {
+      "kind": "assistant",
+      "tool_calls": [
+        {
+          "name": "cancel_order",
+          "args": {
+            "order_id": "1005"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "tool_result",
+      "content": "{\"status\":\"canceled\"}",
+      "call_id": "cancel_order"
+    },
+    {
+      "kind": "final",
+      "content": "Order 1005 is canceled."
+    }
+  ],
+  "final_output": "Order 1005 is canceled.",
+  "metrics": {
+    "tokens": 80,
+    "latency_ms": 12
+  }
+}

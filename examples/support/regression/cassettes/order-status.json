@@ -1,0 +1,11 @@
+{
+  "case_id": "order-status",
+  "steps": [
+    {"kind": "user", "content": "Where is order 1002?"},
+    {"kind": "assistant", "tool_calls": [{"name": "lookup_order", "args": {"order_id": "1002"}}]},
+    {"kind": "tool_result", "call_id": "lookup_order", "content": "upstream timeout", "is_error": true},
+    {"kind": "final", "content": "Order 1002 has shipped. Tracking number 1Z999."}
+  ],
+  "final_output": "Order 1002 has shipped. Tracking number 1Z999.",
+  "metrics": {"tokens": 20, "latency_ms": 40}
+}

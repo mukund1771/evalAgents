@@ -1,0 +1,15 @@
+{
+  "case_id": "refund-happy",
+  "steps": [
+    {"kind": "user", "content": "Refund order 1001, it arrived damaged."},
+    {"kind": "assistant", "tool_calls": [{"name": "lookup_order", "args": {"order_id": "1001"}}]},
+    {"kind": "tool_result", "call_id": "lookup_order", "content": "{}"},
+    {"kind": "assistant", "tool_calls": [{"name": "lookup_order", "args": {"order_id": "1001"}}]},
+    {"kind": "tool_result", "call_id": "lookup_order", "content": "{}"},
+    {"kind": "assistant", "tool_calls": [{"name": "lookup_order", "args": {"order_id": "1001"}}]},
+    {"kind": "tool_result", "call_id": "lookup_order", "content": "{}"},
+    {"kind": "final", "content": "done"}
+  ],
+  "final_output": "done",
+  "metrics": {"tokens": 10, "latency_ms": 5}
+}

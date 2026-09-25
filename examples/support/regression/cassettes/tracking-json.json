@@ -1,0 +1,15 @@
+{
+  "case_id": "tracking-json",
+  "steps": [
+    {"kind": "user", "content": "Return tracking for order 1002 as JSON."},
+    {"kind": "assistant", "content": "let me think"},
+    {"kind": "assistant", "content": "still thinking"},
+    {"kind": "assistant", "content": "one more"},
+    {"kind": "assistant", "content": "and another"},
+    {"kind": "assistant", "content": "not done"},
+    {"kind": "assistant", "content": "really not done"},
+    {"kind": "final", "content": "not json"}
+  ],
+  "final_output": "not json",
+  "metrics": {"tokens": 30, "latency_ms": 8}
+}

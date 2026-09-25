@@ -1,0 +1,51 @@
+{
+  "case_id": "refund-happy",
+  "steps": [
+    {
+      "kind": "user",
+      "content": "Refund order 1001, it arrived damaged."
+    },
+    {
+      "kind": "assistant",
+      "tool_calls": [
+        {
+          "name": "lookup_order",
+          "args": {
+            "order_id": "1001"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "tool_result",
+      "content": "{\"status\":\"delivered\",\"damaged\":true}",
+      "call_id": "lookup_order"
+    },
+    {
+      "kind": "assistant",
+      "tool_calls": [
+        {
+          "name": "issue_refund",
+          "args": {
+            "order_id": "1001",
+            "reason": "damaged"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "tool_result",
+      "content": "{\"refund_id\":\"r-1001\"}",
+      "call_id": "issue_refund"
+    },
+    {
+      "kind": "final",
+      "content": "I've issued a refund for order 1001."
+    }
+  ],
+  "final_output": "I've issued a refund for order 1001.",
+  "metrics": {
+    "tokens": 80,
+    "latency_ms": 12
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "case_id": "exact-greeting",
+  "steps": [
+    {
+      "kind": "user",
+      "content": "hi"
+    },
+    {
+      "kind": "final",
+      "content": "Hello, how can I help with your order today?"
+    }
+  ],
+  "final_output": "Hello, how can I help with your order today?",
+  "metrics": {
+    "tokens": 80,
+    "latency_ms": 12
+  }
+}

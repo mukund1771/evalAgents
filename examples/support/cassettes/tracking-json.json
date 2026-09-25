@@ -1,0 +1,34 @@
+{
+  "case_id": "tracking-json",
+  "steps": [
+    {
+      "kind": "user",
+      "content": "Return tracking for order 1002 as JSON."
+    },
+    {
+      "kind": "assistant",
+      "tool_calls": [
+        {
+          "name": "lookup_order",
+          "args": {
+            "order_id": "1002"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "tool_result",
+      "content": "{\"status\":\"shipped\",\"tracking\":\"1Z999\"}",
+      "call_id": "lookup_order"
+    },
+    {
+      "kind": "final",
+      "content": "{\"order_id\":\"1002\",\"tracking\":\"1Z999\"}"
+    }
+  ],
+  "final_output": "{\"order_id\":\"1002\",\"tracking\":\"1Z999\"}",
+  "metrics": {
+    "tokens": 80,
+    "latency_ms": 12
+  }
+}
