@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"unicode"
 
 	"github.com/mukund1771/evalAgents/internal/eval"
 
@@ -86,6 +87,9 @@ func Load(path string) (*File, error) {
 	if raw.Name == "" {
 		return nil, fmt.Errorf("suite name is required")
 	}
+	if bad, ok := unprintable(raw.Name); ok {
+		return nil, fmt.Errorf("suite name contains %q", bad)
+	}
 	if len(raw.Cases) == 0 {
 		return nil, fmt.Errorf("suite has no cases")
 	}
@@ -121,6 +125,12 @@ func Load(path string) (*File, error) {
 		}
 		if ids[c.ID] {
 			return nil, fmt.Errorf("duplicate case id %q", c.ID)
+		}
+		// A case id is also a cassette filename and a cell in every report, so
+		// it has to be one line of printable text. Rejecting it here is cheaper
+		// than every consumer defending itself.
+		if bad, ok := unprintable(c.ID); ok {
+			return nil, fmt.Errorf("case id %q contains %q", c.ID, bad)
 		}
 		ids[c.ID] = true
 		in, err := toJSON(c.Input)
@@ -208,4 +218,14 @@ func toJSON(v any) (json.RawMessage, error) {
 		return nil, err
 	}
 	return b, nil
+}
+
+// unprintable reports the first control or format rune in s, if any.
+func unprintable(s string) (rune, bool) {
+	for _, r := range s {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			return r, true
+		}
+	}
+	return 0, false
 }

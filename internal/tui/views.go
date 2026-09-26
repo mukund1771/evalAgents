@@ -6,6 +6,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/mattn/go-runewidth"
+
 	"github.com/mukund1771/evalAgents/internal/eval"
 	"github.com/mukund1771/evalAgents/internal/report"
 	"github.com/mukund1771/evalAgents/internal/store"
@@ -34,8 +36,10 @@ func (m model) runsBody() (string, int) {
 		return m.st.dim.Render("loading…"), -1
 	}
 	if len(m.rows) == 0 {
-		return fmt.Sprintf("no runs under %s\n\n%s", m.root,
-			m.st.dim.Render("run a suite first, or try: agenteval demo")), -1
+		// The root goes on its own line and wraps rather than being clipped: the
+		// whole point of this message is naming the directory it looked in.
+		return "no runs under\n" + renderSpanned(safeLabel(m.root), nil, m.w, m.st) +
+			"\n\n" + m.st.dim.Render(clip("run a suite first, or try: agenteval demo", m.w)), -1
 	}
 	var buf bytes.Buffer
 	tw := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
@@ -46,7 +50,9 @@ func (m model) runsBody() (string, int) {
 			pass = fmt.Sprintf("%.2f", r.sum.Pass1)
 			cases = fmt.Sprintf("%d", len(r.sum.Cases))
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", r.man.ID, r.man.Suite,
+		// The id and suite come off disk and are printed, so they go through
+		// safeLabel like every other untrusted label.
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", safeLabel(r.man.ID), safeLabel(r.man.Suite),
 			r.man.StartedAt.Format("2006-01-02 15:04:05"), pass, cases)
 	}
 	tw.Flush()
@@ -55,8 +61,14 @@ func (m model) runsBody() (string, int) {
 	out := make([]string, 0, len(lines))
 	// Four columns of gutter on every row, header included: two for the cursor
 	// arrow, one for the diff mark, one to keep the mark off the run id.
-	out = append(out, "    "+m.st.header.Render(lines[0]))
+	out = append(out, "    "+m.st.header.Render(clip(lines[0], m.w-4)))
 	for i, line := range lines[1:] {
+		// safeLabel guarantees one line per row, so i indexes m.rows. The guard
+		// is belt and braces: getting this wrong panicked the whole browser at
+		// startup, and an unbrowsable store is worse than a missing row.
+		if i >= len(m.rows) {
+			break
+		}
 		// The arrow and the mark both have to be legible with no colour at all.
 		arrow, mark := "  ", " "
 		if i == m.runCursor {
@@ -65,6 +77,9 @@ func (m model) runsBody() (string, int) {
 		if n := strings.TrimSpace(m.markOf(m.rows[i].man.ID)); n != "" {
 			mark = m.st.mark.Render(n)
 		}
+		// Clip rather than let the viewport soft-wrap: a wrapped row would make
+		// one run occupy two display rows, and the cursor arithmetic counts rows.
+		line = clip(line, m.w-4)
 		body := line
 		if !m.rows[i].sum.Passed && m.rows[i].err == "" {
 			body = m.st.fail.Render(line)
@@ -118,9 +133,9 @@ func (m model) runDetailBody() (string, int) {
 
 	out := make([]string, 0, len(lines)+2)
 	// Line 0 is the run header, line 1 the column header, cases follow.
-	out = append(out, "  "+m.st.title.Render(lines[0]))
+	out = append(out, "  "+m.st.title.Render(clip(lines[0], m.w-2)))
 	if len(lines) > 1 {
-		out = append(out, "  "+m.st.header.Render(lines[1]))
+		out = append(out, "  "+m.st.header.Render(clip(lines[1], m.w-2)))
 	}
 	cursorLine := -1
 	for i, line := range lines[2:] {
@@ -129,10 +144,13 @@ func (m model) runDetailBody() (string, int) {
 			prefix = m.st.cursor.Render("> ")
 			cursorLine = 2 + i
 		}
-		out = append(out, prefix+line)
+		// One display row per case, so the gutter and cursorLine stay in step
+		// with m.caseCursor however wide the scorer table gets.
+		out = append(out, prefix+clip(line, m.w-2))
 	}
 	if len(m.rows[m.runCursor].sum.Cases) > 0 {
-		out = append(out, "", m.st.dim.Render("  enter a case for its scores, evidence, and trajectory"))
+		hint := "  enter a case for its scores, evidence, and trajectory"
+		out = append(out, "", m.st.dim.Render(clip(hint, m.w)))
 	}
 	return strings.Join(out, "\n"), cursorLine
 }
@@ -154,11 +172,11 @@ func (m model) caseDetailBody() string {
 		}
 		return fmt.Sprintf("no stored result rows for case %s", id)
 	}
-	row := rows[clamp(m.repeat, 0, len(rows)-1)]
+	row := rows[min(max(m.repeat, 0), len(rows)-1)]
 	width := max(20, m.w-2)
 
 	var b strings.Builder
-	head := fmt.Sprintf("case %s", id)
+	head := fmt.Sprintf("case %s", safeLabel(id))
 	if len(rows) > 1 {
 		// Repeats are the whole reason pass^k exists. Showing only the first row
 		// would hide the flake this tool was built to find.
@@ -208,7 +226,7 @@ func (m model) scoreLine(sc eval.Score, tr eval.Trajectory, width int) string {
 	// Name and value on one line, reason beneath it. Keeping the reason on the
 	// same line means a long explanation wraps back to column zero, which breaks
 	// the alignment that makes a column of scores scannable.
-	line := fmt.Sprintf("  %-28s %s", sc.Name, style.Render(val))
+	line := fmt.Sprintf("  %-28s %s", safeLabel(sc.Name), style.Render(val))
 	if sc.Explanation != "" {
 		line += "\n      " + indent(renderSpanned(sc.Explanation, nil, width-6, m.st))
 	}
@@ -241,9 +259,11 @@ func (m model) steps(row store.ResultRow, width int) string {
 	}
 	var b strings.Builder
 	for i, step := range row.Trajectory.Steps {
-		label := fmt.Sprintf("  [%d] %s", i, step.Kind)
+		// Kind and CallID are decoded from the evaluated program's stdout, so
+		// they are exactly as untrusted as Content and go through safeLabel too.
+		label := fmt.Sprintf("  [%d] %s", i, safeLabel(step.Kind))
 		if step.CallID != "" {
-			label += " call=" + step.CallID
+			label += " call=" + safeLabel(step.CallID)
 		}
 		if step.IsError {
 			label += m.st.fail.Render(" error")
@@ -254,7 +274,7 @@ func (m model) steps(row store.ResultRow, width int) string {
 			if args == "" {
 				args = "{}"
 			}
-			b.WriteString("      " + renderSpanned(tc.Name+" "+args, nil, width-6, m.st) + "\n")
+			b.WriteString("      " + indent(renderSpanned(tc.Name+" "+args, nil, width-6, m.st)) + "\n")
 		}
 		if step.Content != "" {
 			ivs, _ := spanIntervals(step.Content, byStep[i], i)
@@ -294,17 +314,24 @@ func (m model) titleLine() string {
 		viewCaseDetail: "case",
 		viewDiff:       "diff",
 	}[m.view]
-	return m.st.title.Render("agenteval "+name) + m.st.dim.Render("   "+m.root)
+	head := "agenteval " + name
+	// Clamp to the terminal: the three chrome lines are outside the viewport, so
+	// nothing else truncates them, and one overlong line makes the alt screen
+	// scroll and pushes the title off the top.
+	root := clip(safeLabel(m.root), max(0, m.w-runewidth.StringWidth(head)-3))
+	return m.st.title.Render(head) + m.st.dim.Render("   "+root)
 }
 
 func (m model) statusLine() string {
 	switch {
-	case m.err != "":
-		return m.st.errText.Render(m.err)
+	// status before err: err is set once by a failed load and never cleared, so
+	// giving it precedence made every later keypress look like it did nothing.
 	case m.status != "":
-		return m.st.note.Render(m.status)
+		return m.st.note.Render(clip(m.status, m.w))
+	case m.err != "":
+		return m.st.errText.Render(clip(safeLabel(m.err), m.w))
 	case m.view == viewRuns && len(m.marked) > 0:
-		return m.st.dim.Render(fmt.Sprintf("marked %s", strings.Join(m.marked, "  ")))
+		return m.st.dim.Render(clip(fmt.Sprintf("marked %s", strings.Join(m.marked, "  ")), m.w))
 	}
 	return ""
 }
@@ -313,11 +340,13 @@ func (m model) footerLine() string {
 	if !m.help {
 		return m.st.dim.Render("?  keys")
 	}
+	// Kept inside 80 cells so the default terminal does not wrap the footer and
+	// push the whole fixed-height view one row too tall.
 	keys := map[view]string{
-		viewRuns:       "↑↓/jk move · enter open · space mark · d diff marked · c clear · g/G ends · q quit",
-		viewRunDetail:  "↑↓/jk case · enter open · esc back · g/G ends · q quit",
-		viewCaseDetail: "↑↓/jk scroll · n/p repeat · pgup/pgdn · ctrl+u/d · esc back · q quit",
-		viewDiff:       "↑↓/jk scroll · pgup/pgdn · esc back · q quit",
+		viewRuns:       "jk move · enter open · space mark · d diff · c clear · g/G ends · q quit",
+		viewRunDetail:  "jk case · enter open · esc back · g/G ends · q quit",
+		viewCaseDetail: "jk scroll · n/p repeat · pgup/pgdn · ctrl+u/d · esc back · q quit",
+		viewDiff:       "jk scroll · pgup/pgdn · esc back · q quit",
 	}[m.view]
-	return m.st.dim.Render(keys)
+	return m.st.dim.Render(clip(keys, m.w))
 }

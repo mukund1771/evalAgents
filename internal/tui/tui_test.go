@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/mukund1771/evalAgents/internal/eval"
 	"github.com/mukund1771/evalAgents/internal/report"
 	"github.com/mukund1771/evalAgents/internal/store"
@@ -597,7 +598,13 @@ func TestRootThatIsAFileIsReported(t *testing.T) {
 	if m.err == "" {
 		t.Fatal("a root that is a file should set an error")
 	}
-	if !strings.Contains(m.View(), m.err) {
+	// The status line is chrome, so it is clipped to the terminal width with an
+	// ellipsis; assert on the head of the message rather than the whole thing.
+	head := m.err
+	if len(head) > 30 {
+		head = head[:30]
+	}
+	if !strings.Contains(m.View(), head) {
 		t.Fatalf("the error should be visible:\n%s", m.View())
 	}
 }
@@ -617,4 +624,140 @@ func TestRenderBeforeAnyDataDoesNotPanic(t *testing.T) {
 	}
 	// And every key pressed on an empty store must be harmless.
 	drive(t, out.(model), "enter", "j", "k", " ", "d", "c", "n", "p", "G", "g", "esc", "?")
+}
+
+// This is the bug that killed the browser at startup: runsBody indexed m.rows by
+// tabwriter output line, so a newline anywhere in a manifest made the table emit
+// more lines than there were runs.
+func TestManifestWithControlBytesNeitherPanicsNorReachesTheTerminal(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".agenteval")
+	id := "20260926T100000Z-aaaaaa"
+	run, err := store.Create(root, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Well-formed JSON, hostile content. A YAML block scalar produces the
+	// newline; the escape and the bidi override are what an evaluated program
+	// could write into a trajectory.
+	man := store.Manifest{
+		ID:        id,
+		Suite:     "support\nagent\x1b[2J‮",
+		StartedAt: time.Now().UTC(),
+		Target:    "replay",
+		Scorers:   []string{"contains"},
+		Repeats:   1,
+	}
+	rows := []store.ResultRow{row("alpha", "ok", eval.Float("contains", 1, 1, "m", nil))}
+	if err := run.WriteManifest(man); err != nil {
+		t.Fatal(err)
+	}
+	if err := run.WriteResults(rows); err != nil {
+		t.Fatal(err)
+	}
+	if err := run.WriteSummary(store.Summarize(man, rows, []string{"alpha"})); err != nil {
+		t.Fatal(err)
+	}
+
+	m := newTestModel(t, root) // panicked here before the fix
+	view := m.View()
+	if strings.ContainsAny(view, "\x1b") || strings.ContainsRune(view, '‮') {
+		t.Fatalf("control bytes reached the rendered view: %q", view)
+	}
+	if !strings.Contains(view, "support agent") {
+		t.Fatalf("the suite name should still be readable:\n%s", view)
+	}
+	// And navigating into it must be harmless.
+	drive(t, m, "enter", "j", "enter", "G", "esc", "esc", " ", "d")
+}
+
+// step.Kind, step.CallID and the scorer name decode from the evaluated program's
+// stdout, so they are as untrusted as the content and used to bypass the sanitiser.
+func TestTrajectoryLabelsAreSanitised(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".agenteval")
+	id := "20260926T100000Z-bbbbbb"
+	r := row("alpha", "done", eval.Float("cont\x1b[2Jains", 1, 1, "matched", nil))
+	r.Trajectory.Steps[0].Kind = "user\x1b[2J"
+	r.Trajectory.Steps[0].CallID = "c1\x07"
+	r.Trajectory.Steps[1].Content = "fine"
+	writeRun(t, root, id, time.Now(), "s", []string{"cont\x1b[2Jains"}, []store.ResultRow{r})
+
+	m := newTestModel(t, root)
+	m, _ = drive(t, m, "enter")
+	m = loadResultsFor(t, m, id)
+	m, _ = drive(t, m, "enter")
+	body := m.caseDetailBody()
+	if strings.ContainsAny(body, "\x1b\x07") {
+		t.Fatalf("an escape sequence reached the case view: %q", body)
+	}
+}
+
+// The three chrome lines sit outside the viewport, so nothing else clamps them.
+// An overlong footer made the fixed-height view one display row too tall.
+func TestChromeNeverOverflowsTheTerminalWidth(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".agenteval")
+	twoRuns(t, root)
+	m := newModel(root, plainStyles())
+	out, _ := m.Update(loadRuns(root)())
+	m = out.(model)
+
+	for _, w := range []int{40, 60, 80, 120} {
+		out, _ = m.Update(tea.WindowSizeMsg{Width: w, Height: 20})
+		mm := out.(model)
+		for _, help := range []bool{false, true} {
+			mm.help = help
+			for _, v := range []view{viewRuns, viewRunDetail, viewCaseDetail, viewDiff} {
+				mm.view = v
+				mm.refresh()
+				for i, line := range strings.Split(mm.View(), "\n") {
+					if got := lipgloss.Width(line); got > w {
+						t.Fatalf("width %d help=%v view=%v: line %d is %d cells: %q",
+							w, help, v, i, got, line)
+					}
+				}
+			}
+		}
+	}
+}
+
+// ensureVisible counts body lines, so a body line must never soft-wrap into two
+// display rows or the cursor scrolls off screen and navigation looks frozen.
+func TestBodyLinesFitTheViewportSoCursorMathHolds(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".agenteval")
+	twoRuns(t, root)
+	m := newTestModel(t, root)
+	for _, w := range []int{40, 60, 80} {
+		out, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: 12})
+		mm := out.(model)
+		for _, v := range []view{viewRuns, viewRunDetail} {
+			mm.view = v
+			mm.refresh()
+			body, _ := mm.body()
+			for i, line := range strings.Split(body, "\n") {
+				if got := lipgloss.Width(line); got > w {
+					t.Fatalf("width %d view=%v: body line %d is %d cells: %q", w, v, i, got, line)
+				}
+			}
+		}
+	}
+}
+
+// A run whose manifest will not parse used to vanish from the list entirely.
+func TestUnreadableManifestStillGetsARow(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".agenteval")
+	good, _ := twoRuns(t, root)
+	broken := filepath.Join(root, "runs", "20260926T100009Z-cccccc")
+	if err := os.MkdirAll(broken, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(broken, "manifest.json"), []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m := newTestModel(t, root)
+	body, _ := m.body()
+	if !strings.Contains(body, "20260926T100009Z-cccccc") {
+		t.Fatalf("the unreadable run should still be listed:\n%s", body)
+	}
+	if !strings.Contains(body, good) {
+		t.Fatalf("the good runs should still be listed:\n%s", body)
+	}
 }

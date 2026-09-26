@@ -1,6 +1,9 @@
 package report
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mukund1771/evalAgents/internal/store"
@@ -40,5 +43,37 @@ func TestCompareRegression(t *testing.T) {
 	})
 	if len(added.Regressions) != 0 || len(added.Notes) != 1 {
 		t.Fatalf("new case = %#v", added)
+	}
+}
+
+// A case no scorer applied to was reported as a hard failure, which in a CI UI
+// looks identical to an assertion that ran and was wrong.
+func TestJUnitMarksAnUngradedCaseSkipped(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "results.xml")
+	sum := store.Summary{
+		Suite: "s",
+		Cases: []store.CaseSummary{
+			{ID: "graded", Passed: true, Means: map[string]float64{"contains": 1}},
+			{ID: "failed", Passed: false, Means: map[string]float64{"contains": 0}, Failed: []string{"contains"}},
+			{ID: "ungraded", Passed: false}, // every scorer skipped, so Means is empty
+		},
+	}
+	if err := WriteJUnit(path, sum); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(b)
+	if !strings.Contains(got, `failures="1"`) {
+		t.Fatalf("want one failure:\n%s", got)
+	}
+	if !strings.Contains(got, `skipped="1"`) {
+		t.Fatalf("want one skipped:\n%s", got)
+	}
+	if !strings.Contains(got, "no scorer applied") {
+		t.Fatalf("the skip should say why:\n%s", got)
 	}
 }

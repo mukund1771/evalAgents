@@ -27,6 +27,15 @@ jobs:
       # It is the first thing a new user runs, so it is checked on every push.
       - run: ./agenteval demo --root .demo-runs
 
+      # The second thing a new user runs. This shipped broken once - the example
+      # agent imported an internal/ package, so the suite `init` wrote out could
+      # not build - and only an end-to-end check catches that class.
+      - name: init writes a working example
+        run: |
+          ./agenteval init /tmp/example
+          ./agenteval run /tmp/example/suite.yaml --root .init-runs
+          ./agenteval run /tmp/example/suite-cmd.yaml --root .init-runs
+
       # The gate itself: a recorded regression must fail, and diff must name it.
       # This is the behaviour the tool exists for, so CI proves it rather than
       # trusting the README.

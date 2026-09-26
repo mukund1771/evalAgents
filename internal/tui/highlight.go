@@ -23,6 +23,61 @@ const (
 	evidenceClose = "]]"
 )
 
+// printable reports whether a rune can be written to a terminal as itself.
+//
+// unicode.IsControl alone is not enough. It covers category Cc, which catches
+// ESC and so stops a trajectory from clearing the screen, but it lets category
+// Cf through - and that includes the bidi overrides. A final output of
+// "verdict: \u202edessap" renders as "verdict: passed" in any terminal that
+// honours them, which in a tool whose whole job is showing what the agent
+// actually said is the worst possible failure.
+func printable(r rune) bool {
+	if r == utf8.RuneError { // also every invalid byte, so output is valid UTF-8
+		return false
+	}
+	if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+		return false
+	}
+	return true
+}
+
+// safeLabel makes an untrusted string safe to place inside a rendered line.
+//
+// It is for short identifiers - a run id, a suite or case name, a step kind, a
+// tool call id, a store path. Those carry no evidence spans, so unlike
+// renderSpanned this may change the string's length freely. Every one of them
+// reaches us from a file a user can edit or from the stdout of the program being
+// evaluated, so none of them can be trusted to be one line of printable text.
+//
+// Collapsing newlines matters for more than looks: the runs table is built with
+// a tabwriter and then read back line by line, so a name containing a newline
+// would produce more lines than there are rows.
+func safeLabel(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch {
+		case r == '\n' || r == '\r' || r == '\t':
+			b.WriteByte(' ')
+		case !printable(r):
+			b.WriteByte('?')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// clip truncates to width display cells, marking the cut so a reader knows the
+// line continues. Used for the lines outside the viewport, which bubbles does
+// not clamp for us.
+func clip(s string, width int) string {
+	if width < 2 || runewidth.StringWidth(s) <= width {
+		return s
+	}
+	return runewidth.Truncate(s, width, "\u2026")
+}
+
 // interval is a rune-aligned byte range inside one step's content, safe to slice.
 type interval struct{ lo, hi int }
 
@@ -163,7 +218,31 @@ func renderSpanned(content string, ivs []interval, width int, st styles) string 
 			mark(evidenceClose)
 			inside = false
 		}
-		if !inside && next < len(ivs) && i == ivs[next].lo {
+		// Skip an interval we have already walked past - one that covered only a
+		// newline, for instance - so it cannot reopen as an empty marker pair.
+		for next < len(ivs) && ivs[next].hi <= i {
+			next++
+		}
+		// A newline is structure, not content. Opening or closing a mark across
+		// one produced an empty "[[]]" for any span that merely touched a line
+		// break, and for a span covering only a newline the evidence rendered as
+		// two empty pairs and nothing else.
+		if r == '\n' {
+			cont := inside && hi > i+1
+			if inside {
+				mark(evidenceClose)
+				inside = false
+			}
+			flush()
+			out.WriteByte('\n')
+			col = 0
+			if cont {
+				inside = true
+				mark(evidenceOpen)
+			}
+			continue
+		}
+		if !inside && next < len(ivs) && i >= ivs[next].lo {
 			// Opening needs room for both markers plus a rune between them.
 			if col+len(evidenceOpen)+len(evidenceClose)+1 > width {
 				newline()
@@ -174,19 +253,6 @@ func renderSpanned(content string, ivs []interval, width int, st styles) string 
 		}
 
 		switch {
-		case r == '\n':
-			flush()
-			if inside {
-				// Keep the mark open across the agent's own newlines.
-				mark(evidenceClose)
-				out.WriteByte('\n')
-				col = 0
-				mark(evidenceOpen)
-				continue
-			}
-			out.WriteByte('\n')
-			col = 0
-			continue
 		case r == '\t':
 			// Four spaces, so the width is deterministic rather than
 			// style-dependent. Three here and one from the common path below.
@@ -198,8 +264,7 @@ func renderSpanned(content string, ivs []interval, width int, st styles) string 
 				col++
 			}
 			r = ' '
-		case r == utf8.RuneError, unicode.IsControl(r):
-			// Invalid UTF-8 lands here too, so the output is always valid UTF-8.
+		case !printable(r):
 			r = '?'
 		}
 

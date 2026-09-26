@@ -93,6 +93,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case runsMsg:
 		m.loaded = true
+		// Reset either way: a load that now succeeds must not leave the previous
+		// failure sitting in the status line for the rest of the session.
+		m.err = ""
 		if msg.err != nil {
 			m.err = msg.err.Error()
 		}
@@ -213,11 +216,11 @@ func (m model) move(delta int) model {
 	switch m.view {
 	case viewRuns:
 		if n := len(m.rows); n > 0 {
-			m.runCursor = clamp(m.runCursor+delta, 0, n-1)
+			m.runCursor = min(max(m.runCursor+delta, 0), n-1)
 		}
 	case viewRunDetail:
 		if n := len(m.cases()); n > 0 {
-			m.caseCursor = clamp(m.caseCursor+delta, 0, n-1)
+			m.caseCursor = min(max(m.caseCursor+delta, 0), n-1)
 		}
 	default:
 		if delta > 0 {
@@ -312,8 +315,11 @@ func (m model) diffPair() (base, cur runRow, ok bool) {
 	return a, b, true
 }
 
-// olderFirst reports whether a precedes b. The id breaks a timestamp tie so the
-// order is total: a --matrix sweep writes runs inside the same second.
+// olderFirst reports whether a precedes b by start time.
+//
+// The id breaks a tie only to keep the comparison total and the diff
+// reproducible. It is not a chronology: an id ends in three random bytes, so on
+// a genuine timestamp tie the choice of baseline is arbitrary but stable.
 func olderFirst(a, b runRow) bool {
 	if !a.man.StartedAt.Equal(b.man.StartedAt) {
 		return a.man.StartedAt.Before(b.man.StartedAt)
@@ -390,14 +396,4 @@ func (m *model) ensureVisible(line int) {
 	case line >= m.vp.YOffset+h:
 		m.vp.SetYOffset(line - h + 1)
 	}
-}
-
-func clamp(v, lo, hi int) int {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
 }

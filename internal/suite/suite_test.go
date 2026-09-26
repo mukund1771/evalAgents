@@ -74,6 +74,10 @@ func TestLoadRejects(t *testing.T) {
 		{"missing case id", "name: t\ntarget: { kind: replay, dir: c }\nscorers: [{kind: contains}]\ncases: [{input: {user: hi}}]\n", "case id is required"},
 		{"duplicate case id", "name: t\ntarget: { kind: replay, dir: c }\nscorers: [{kind: contains}]\ncases: [{id: a}, {id: a}]\n", `duplicate case id "a"`},
 		{"not yaml", "name: [\n", "parse suite"},
+		// A case id is also a cassette filename and a cell in every report.
+		{"newline in case id", "name: t\ntarget: { kind: replay, dir: c }\nscorers: [{kind: contains}]\ncases: [{id: \"a\\nb\"}]\n", "contains"},
+		{"escape in case id", "name: t\ntarget: { kind: replay, dir: c }\nscorers: [{kind: contains}]\ncases: [{id: \"a\\u001bb\"}]\n", "contains"},
+		{"newline in suite name", "name: \"a\\nb\"\ntarget: { kind: replay, dir: c }\nscorers: [{kind: contains}]\ncases: [{id: a}]\n", "suite name contains"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

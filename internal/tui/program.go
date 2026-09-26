@@ -18,13 +18,21 @@ var ErrNotATerminal = errors.New("tui needs a terminal; try agenteval list")
 // touches a terminal, so everything else stays a pure state machine that tests
 // can drive without a tty.
 //
-// out must be an *os.File: an alt-screen program driven by key input has no
-// meaning against a pipe. Asserting the concrete type needs no new dependency
-// and no syscall, and it gives the CLI test a deterministic way to prove the
-// subcommand is wired without ever starting a program.
+// out must be a character device: an alt-screen program driven by key input has
+// no meaning against a pipe or a file.
 func Run(root string, out io.Writer) error {
 	f, ok := out.(*os.File)
 	if !ok {
+		return ErrNotATerminal
+	}
+	// *os.File alone was not enough: a redirect satisfies it, so
+	// `agenteval tui > runs.txt` entered the alt screen against a file and hung
+	// with nothing on screen instead of printing the advice above. The mode bit
+	// is the stdlib way to ask, so this still needs no new dependency, and a
+	// bytes.Buffer still fails, which is how the CLI test proves the subcommand
+	// is wired without starting a program.
+	fi, err := f.Stat()
+	if err != nil || fi.Mode()&os.ModeCharDevice == 0 {
 		return ErrNotATerminal
 	}
 	p := tea.NewProgram(
@@ -32,6 +40,6 @@ func Run(root string, out io.Writer) error {
 		tea.WithOutput(f),
 		tea.WithAltScreen(),
 	)
-	_, err := p.Run()
+	_, err = p.Run()
 	return err
 }

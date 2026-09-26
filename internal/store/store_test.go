@@ -2,6 +2,7 @@ package store
 
 import (
 	"math"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -66,11 +67,43 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil || len(gotRows) != 1 {
 		t.Fatalf("rows %v %v", gotRows, err)
 	}
-	listed, err := List(root)
+	listed, _, err := List(root)
 	if err != nil || len(listed) != 1 || listed[0].ID != id {
 		t.Fatalf("list %v %v", listed, err)
 	}
 	if filepath.Base(run.Dir) != id {
 		t.Fatal(run.Dir)
+	}
+}
+
+// A run killed mid-write leaves a truncated manifest. It used to be dropped with
+// a bare continue, so it vanished from every listing with exit code 0.
+func TestListReportsUnreadableManifests(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".agenteval")
+	good := "20260926T100000Z-aaaaaa"
+	run, err := Create(root, good)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := run.WriteManifest(Manifest{ID: good, Suite: "s", StartedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	bad := "20260926T100001Z-bbbbbb"
+	if err := os.MkdirAll(filepath.Join(root, "runs", bad), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "runs", bad, "manifest.json"), []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	mans, unreadable, err := List(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mans) != 1 || mans[0].ID != good {
+		t.Fatalf("manifests = %#v", mans)
+	}
+	if len(unreadable) != 1 || unreadable[0] != bad {
+		t.Fatalf("unreadable = %#v, want [%s]", unreadable, bad)
 	}
 }
