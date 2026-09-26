@@ -276,9 +276,8 @@ func (m model) startDiff() (model, tea.Cmd) {
 		m.status = "mark two runs with space, then press d"
 		return m, nil
 	}
-	a, aok := m.rowByID(m.marked[0])
-	b, bok := m.rowByID(m.marked[1])
-	if !aok || !bok {
+	a, b, ok := m.diffPair()
+	if !ok {
 		m.status = "a marked run is no longer in the store"
 		return m, nil
 	}
@@ -286,13 +285,31 @@ func (m model) startDiff() (model, tea.Cmd) {
 		m.status = "a marked run has no readable summary"
 		return m, nil
 	}
-	if !olderFirst(a, b) {
-		a, b = b, a
-	}
 	m.diff = report.Compare(a.sum, b.sum)
 	m.view = viewDiff
 	m.vp.GotoTop()
 	return m, nil
+}
+
+// diffPair returns the two marked runs in comparison order, baseline first.
+//
+// Both the A/B marks in the runs list and the comparison itself read from here.
+// When they were worked out separately the gutter labelled the run marked first
+// as A while the diff used the older run as baseline, so the list said A -> B
+// and the report did the opposite.
+func (m model) diffPair() (base, cur runRow, ok bool) {
+	if len(m.marked) < 2 {
+		return runRow{}, runRow{}, false
+	}
+	a, aok := m.rowByID(m.marked[0])
+	b, bok := m.rowByID(m.marked[1])
+	if !aok || !bok {
+		return runRow{}, runRow{}, false
+	}
+	if !olderFirst(a, b) {
+		a, b = b, a
+	}
+	return a, b, true
 }
 
 // olderFirst reports whether a precedes b. The id breaks a timestamp tie so the

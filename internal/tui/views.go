@@ -53,15 +53,16 @@ func (m model) runsBody() (string, int) {
 
 	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
 	out := make([]string, 0, len(lines))
-	out = append(out, "   "+m.st.header.Render(lines[0]))
+	// Four columns of gutter on every row, header included: two for the cursor
+	// arrow, one for the diff mark, one to keep the mark off the run id.
+	out = append(out, "    "+m.st.header.Render(lines[0]))
 	for i, line := range lines[1:] {
-		// Three columns of gutter, the same width on every row: the cursor arrow
-		// and the diff mark both have to be legible with no colour at all.
+		// The arrow and the mark both have to be legible with no colour at all.
 		arrow, mark := "  ", " "
 		if i == m.runCursor {
 			arrow = "> "
 		}
-		if n := markOf(m.marked, m.rows[i].man.ID); n != "" {
+		if n := strings.TrimSpace(m.markOf(m.rows[i].man.ID)); n != "" {
 			mark = m.st.mark.Render(n)
 		}
 		body := line
@@ -71,27 +72,31 @@ func (m model) runsBody() (string, int) {
 		if i == m.runCursor {
 			arrow = m.st.cursor.Render(arrow)
 		}
-		out = append(out, arrow+mark+body)
+		out = append(out, arrow+mark+" "+body)
 	}
 	return strings.Join(out, "\n"), 1 + m.runCursor
 }
 
-// markOf returns "A" for the older marked run and "B" for the newer, so the
-// gutter says which side of the diff each one will be.
-func markOf(marked []string, id string) string {
-	for i, m := range marked {
-		if m != id {
-			continue
+// markOf labels a marked run with the side of the diff it will actually be:
+// A is the baseline, B the candidate. It asks diffPair rather than using the
+// order the user pressed space in, so the gutter and the report agree.
+func (m model) markOf(id string) string {
+	base, cur, ok := m.diffPair()
+	if !ok {
+		for _, marked := range m.marked {
+			if marked == id {
+				return "*"
+			}
 		}
-		if len(marked) < 2 {
-			return "*"
-		}
-		if i == 0 {
-			return "A"
-		}
+		return " "
+	}
+	switch id {
+	case base.man.ID:
+		return "A"
+	case cur.man.ID:
 		return "B"
 	}
-	return ""
+	return " "
 }
 
 // runDetailBody is report.Table's own output with a cursor gutter added.
