@@ -2,8 +2,8 @@ package report
 
 import (
 	"encoding/xml"
-	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/mukund1771/evalAgents/internal/store"
@@ -57,40 +57,8 @@ func WriteJUnit(path string, sum store.Summary) error {
 	}
 	out := append([]byte(xml.Header), b...)
 	out = append(out, '\n')
-	if err := os.MkdirAll(dirOf(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	return os.WriteFile(path, out, 0o644)
-}
-
-func dirOf(path string) string {
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' {
-			if i == 0 {
-				return "/"
-			}
-			return path[:i]
-		}
-	}
-	return "."
-}
-
-// FormatDiff renders regression lines. The caller exits 1 when Regressions is non-empty.
-func FormatDiff(d Diff) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "baseline %s\ncurrent  %s\n", d.Baseline, d.Current)
-	if len(d.Regressions) == 0 {
-		b.WriteString("no regressions\n")
-	} else {
-		fmt.Fprintf(&b, "%d regression(s)\n", len(d.Regressions))
-		for _, r := range d.Regressions {
-			b.WriteString(r)
-			b.WriteByte('\n')
-		}
-	}
-	for _, n := range d.Notes {
-		b.WriteString(n)
-		b.WriteByte('\n')
-	}
-	return b.String()
 }

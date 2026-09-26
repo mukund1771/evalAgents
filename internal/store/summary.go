@@ -160,7 +160,6 @@ func Summarize(man Manifest, rows []ResultRow, caseOrder []string) Summary {
 				g.Mean += a.sums[name]
 				g.Count += a.counts[name]
 				g.Passes += a.passes[name]
-				g.HasValue = true
 			}
 			g.Skipped += a.skipped[name]
 		}

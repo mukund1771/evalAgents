@@ -55,11 +55,19 @@ func (s contains) Score(c eval.Case, t eval.Trajectory) eval.Score {
 		return eval.Skip(s.name, "skipped: expected.contains is absent")
 	}
 	fi := finalIndex(t)
-	idx := strings.Index(t.FinalOutput, exp.Contains)
-	if idx < 0 {
+	if !strings.Contains(t.FinalOutput, exp.Contains) {
 		return eval.Float(s.name, 0, s.min, fmt.Sprintf("final output does not contain %q", exp.Contains), []eval.Span{stepSpan(t, fi)})
 	}
-	ev := []eval.Span{{StepIndex: fi, Start: idx, End: idx + len(exp.Contains)}}
+	// The score reads FinalOutput, but a Span is documented as byte offsets into
+	// a step's content, and those are separate fields a cmd target sets
+	// independently. Locate the text in the step; if it is not there, point at
+	// the whole step rather than at offsets we cannot vouch for.
+	ev := []eval.Span{stepSpan(t, fi)}
+	if fi >= 0 && fi < len(t.Steps) {
+		if i := strings.Index(t.Steps[fi].Content, exp.Contains); i >= 0 {
+			ev = []eval.Span{{StepIndex: fi, Start: i, End: i + len(exp.Contains)}}
+		}
+	}
 	return eval.Float(s.name, 1, s.min, "final output contains the expected text", ev)
 }
 

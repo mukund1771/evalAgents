@@ -67,3 +67,23 @@ func Compare(base, cur store.Summary) Diff {
 	}
 	return d
 }
+
+// FormatDiff renders regression lines. The caller exits 1 when Regressions is non-empty.
+func FormatDiff(d Diff) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "baseline %s\ncurrent  %s\n", d.Baseline, d.Current)
+	if len(d.Regressions) == 0 {
+		b.WriteString("no regressions\n")
+	} else {
+		fmt.Fprintf(&b, "%d regression(s)\n", len(d.Regressions))
+		for _, r := range d.Regressions {
+			b.WriteString(r)
+			b.WriteByte('\n')
+		}
+	}
+	for _, n := range d.Notes {
+		b.WriteString(n)
+		b.WriteByte('\n')
+	}
+	return b.String()
+}

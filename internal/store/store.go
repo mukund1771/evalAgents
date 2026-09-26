@@ -52,13 +52,14 @@ type CaseSummary struct {
 }
 
 // ScorerAggregate is the mean of non-skipped values for one scorer.
+// Count is the number of applied scores, so Count == 0 means every trial
+// skipped this scorer and Mean carries no information.
 type ScorerAggregate struct {
-	Name     string  `json:"name"`
-	Mean     float64 `json:"mean"`
-	Count    int     `json:"count"`
-	Passes   int     `json:"passes"`
-	Skipped  int     `json:"skipped"`
-	HasValue bool    `json:"-"`
+	Name    string  `json:"name"`
+	Mean    float64 `json:"mean"`
+	Count   int     `json:"count"`
+	Passes  int     `json:"passes"`
+	Skipped int     `json:"skipped"`
 }
 
 // Summary is the comparable artifact for diff and the human table.
@@ -205,8 +206,13 @@ func List(root string) ([]Manifest, error) {
 		}
 		out = append(out, m)
 	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].StartedAt.After(out[j].StartedAt)
+	// Stable with an id tie-break: a --matrix sweep writes runs inside the same
+	// second, and callers index [0] as "the newest".
+	sort.SliceStable(out, func(i, j int) bool {
+		if !out[i].StartedAt.Equal(out[j].StartedAt) {
+			return out[i].StartedAt.After(out[j].StartedAt)
+		}
+		return out[i].ID > out[j].ID
 	})
 	return out, nil
 }
