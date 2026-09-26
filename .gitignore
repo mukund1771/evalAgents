@@ -1,2 +1,4 @@
 /agenteval
 .agenteval/
+/dist/
+.demo-runs/

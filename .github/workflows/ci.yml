@@ -23,6 +23,10 @@ jobs:
       # The suite passes and writes JUnit for the test UI.
       - run: ./agenteval run examples/support/suite.yaml --junit results.xml
 
+      # The path a downloaded binary takes: no files, no API key, no network.
+      # It is the first thing a new user runs, so it is checked on every push.
+      - run: ./agenteval demo --root .demo-runs
+
       # The gate itself: a recorded regression must fail, and diff must name it.
       # This is the behaviour the tool exists for, so CI proves it rather than
       # trusting the README.

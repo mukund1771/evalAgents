@@ -2,35 +2,74 @@
 
 `agenteval` is a local agent-eval runner. It scores a trajectory — the steps, tool calls, and final output — and writes an immutable run to disk. It does not call a hosted eval service.
 
-The default demo is offline. No API key, no model, no network.
+Everything is offline by default. No API key, no model, no network, no service to run.
 
-## Quickstart
+## Install
+
+A binary from the [latest release](https://github.com/mukund1771/evalAgents/releases/latest) — no Go toolchain needed. Swap `darwin_arm64` for `darwin_amd64`, `linux_amd64`, `linux_arm64`, or `windows_amd64`:
+
+```bash
+curl -fsSL https://github.com/mukund1771/evalAgents/releases/latest/download/agenteval_darwin_arm64.tar.gz | tar xz
+./agenteval demo
+```
+
+Or with Go:
+
+```bash
+go install github.com/mukund1771/evalAgents/cmd/agenteval@latest
+agenteval demo
+```
+
+Or from a clone:
 
 ```bash
 go build -o agenteval ./cmd/agenteval
-./agenteval run examples/support/suite.yaml
+./agenteval demo
 ```
 
-`go build ./...` typechecks every package. The binary name comes from `-o agenteval`, because building several packages does not leave a binary in the working directory.
+Each release also ships a `SHA256SUMS` file. `agenteval version` prints what you have.
 
-That command replays recorded trajectories for a small support agent, prints a pass^k table, and exits 0. A recorded regression is the next two commands. The second exits 1.
+## Quickstart
+
+`agenteval demo` needs nothing on disk. The example suite and its recorded trajectories are embedded in the binary, so the command unpacks them to a temp directory, scores a support agent against ten recorded trajectories, scores a regressed version of the same agent, and diffs the two:
 
 ```bash
-./agenteval run examples/support/suite.yaml
-./agenteval run examples/support/regression/suite.yaml
-./agenteval diff <good_run_id> <bad_run_id>
+agenteval demo          # the whole story in one command
+agenteval tui           # browse the two runs it just stored
+agenteval init myeval   # write the example out so you can edit it
 ```
 
-Run ids are the first column of `./agenteval list`. Every subcommand takes `--root` if you want the store somewhere other than `./.agenteval`.
-
-To execute the example agent instead of the cassette:
+Then the same thing by hand, which is what a real suite looks like. The second run exits 1, and so does the diff:
 
 ```bash
-./agenteval run examples/support/suite-cmd.yaml --record
-./agenteval run examples/support/suite-cmd.yaml --offline
+agenteval run myeval/suite.yaml
+agenteval run myeval/regression/suite.yaml
+agenteval diff <good_run_id> <bad_run_id>
+```
+
+Run ids are the first column of `agenteval list`. Every subcommand takes `--root` if you want the store somewhere other than `./.agenteval`. `go build ./...` typechecks every package; the binary name comes from `-o agenteval`, because building several packages leaves no binary behind.
+
+To execute an agent instead of replaying a recording:
+
+```bash
+agenteval run myeval/suite-cmd.yaml --record
+agenteval run myeval/suite-cmd.yaml --offline
 ```
 
 `--offline` reads cassettes and fails if one is missing. It does not fall through to a live call.
+
+## Browsing a run
+
+`agenteval tui` is a read-only browser over the run store. Runs list, then a run's case × scorer matrix, then one case's scores with each score's reason, the evidence span, and the trajectory step that caused it — with the bytes the scorer named marked in place. Mark two runs with `space` and press `d` for the regression report.
+
+```
+agenteval runs   .agenteval
+   RUN                      SUITE          WHEN                 PASS^1  CASES
+>  20260926T100001Z-bbbbbb  support-agent  2026-09-26 10:00:01  0.50    2
+   20260926T100000Z-aaaaaa  support-agent  2026-09-26 10:00:00  1.00    2
+```
+
+It renders the same values the CLI prints, because the table is `report.Table`'s own output and the diff is `report.FormatDiff`'s — the two cannot disagree about a number. Evidence is marked with `[[ ]]` rather than colour alone, so it survives `NO_COLOR`, a dumb terminal, and a pipe.
 
 ## Design
 
@@ -61,13 +100,14 @@ Runs are immutable JSONL under `.agenteval/runs/<run_id>/` (`manifest.json`, `re
 
 `tool_call_f1` is also registered as `tool_call_accuracy`. The judge's metric is `task_completion` or `faithfulness`. Those are Lyzr's names for the same ideas: did the tool calls match, and did the task actually finish.
 
-The only dependency outside the standard library is `gopkg.in/yaml.v3`, because the suite file is YAML and the standard library does not parse it.
+The eval path has one dependency outside the standard library, `gopkg.in/yaml.v3`, because the suite file is YAML and the standard library does not parse it. `agenteval tui` adds Bubble Tea, Bubbles and Lip Gloss, which is the honest cost of the browser and the reason it is a separate subcommand rather than something on the scoring path. Still no cgo, still one static binary, still nothing on a port.
 
 ## Non-goals
 
-- A web UI or TUI.
+- A hosted service, accounts, multi-tenancy, or a web UI. `agenteval tui` is a read-only reader over the run store: it renders the files the CLI prints, recomputes nothing, and cannot launch a run or edit a suite. Nothing listens on a port and nothing phones home.
+- A labelling or authoring interface. Suites are YAML files you edit in your own editor.
 - SQLite or any cgo dependency.
-- An OTLP receiver. Nothing here listens on a port. Mapping `POST /v1/traces` spans onto trajectory steps is the obvious next step, and the `replay` target is the seam it would plug into.
+- An OTLP receiver. Mapping `POST /v1/traces` spans onto trajectory steps is the obvious next step, and the `replay` target is the seam it would plug into.
 - Embeddings or semantic similarity.
 - A provider zoo. One OpenAI-compatible client honors `OPENAI_BASE_URL` (OpenAI, Ollama, llama.cpp, vLLM).
 - More than one LLM judge. `model_graded` is off unless a suite lists it.
@@ -91,7 +131,9 @@ The only dependency outside the standard library is `gopkg.in/yaml.v3`, because 
 
 ## CI
 
-`.github/workflows/ci.yml` checks formatting, vets, runs the tests under `-race`, builds the binary, runs the support suite, and then asserts the gate: the recorded regression suite must exit non-zero and `diff` must name the case that broke. The feature the tool exists for is tested in CI rather than described in a README.
+`.github/workflows/ci.yml` checks formatting, vets, runs the tests under `-race`, builds the binary, runs the support suite, runs `agenteval demo` so the path a downloaded binary takes is covered too, and then asserts the gate: the recorded regression suite must exit non-zero and `diff` must name the case that broke. The feature the tool exists for is tested in CI rather than described in a README.
+
+`.github/workflows/release.yml` builds static binaries for darwin arm64/amd64, linux amd64/arm64 and windows amd64 on a `v*` tag, and uploads them with a `SHA256SUMS` file.
 
 To gate another repo, write JUnit and fail the job on a non-zero exit:
 
@@ -107,3 +149,24 @@ To gate another repo, write JUnit and fail the job on a non-zero exit:
 Leave `model_graded` out of the suite unless you want it. When it is listed, set `OPENAI_API_KEY`. Optional: `OPENAI_BASE_URL`, `OPENAI_MODEL`.
 
 The judge must return `{"value":0-1,"passed":true,"explanation":"...","evidence":[{"step_index":0,"start":0,"end":0}]}`. `passed` is checked for presence, then recomputed from `value >= min`. Invalid JSON is retried once, then skipped.
+
+## Commands
+
+```
+agenteval run <suite.yaml> [--filter substr] [--repeats N] [--baseline id]
+                           [--offline] [--record] [--json] [--junit path]
+                           [--concurrency N] [--matrix key=a,b] [--root dir]
+agenteval diff <run_a> <run_b> [--root dir]
+agenteval list [--root dir]
+agenteval show <run_id> [--case id] [--root dir]
+agenteval tui [--root dir]             browse stored runs, read-only
+agenteval demo [--root dir]            run the embedded example, then diff it
+agenteval init [dir]                   write the example out so you can edit it
+agenteval version
+```
+
+`run` and `diff` exit 1 when a case fails or a baseline regresses, which is what a CI job gates on. Everything else exits 0, or 2 on a bad argument — `tui` never exits 1, so it cannot be mistaken for a gate.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

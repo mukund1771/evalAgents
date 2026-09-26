@@ -1,0 +1,83 @@
+name: release
+
+# Tagging v* builds the binaries people download. Plain matrix builds rather
+# than a release tool: this is forty lines of shell that anyone can read, and
+# the repository's selling point is being small.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { goos: darwin, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          name="agenteval"
+          # An && one-liner here would exit non-zero on every non-windows
+          # target and set -e would abort the build.
+          if [ "$GOOS" = windows ]; then name="agenteval.exe"; fi
+          # -trimpath so the archive does not carry the builder's paths.
+          go build -trimpath \
+            -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
+            -o "$name" ./cmd/agenteval
+          # No version in the filename, so
+          # /releases/latest/download/agenteval_darwin_arm64.tar.gz is a stable
+          # URL the README can print once. The tag already names the version,
+          # and `agenteval version` reports it from the binary.
+          stem="agenteval_${GOOS}_${GOARCH}"
+          mkdir -p dist
+          if [ "$GOOS" = windows ]; then
+            zip -q "dist/${stem}.zip" "$name" README.md LICENSE
+          else
+            tar czf "dist/${stem}.tar.gz" "$name" README.md LICENSE
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: staged
+          merge-multiple: true
+      - name: checksums
+        run: |
+          set -euo pipefail
+          cd staged
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+      - name: publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" staged/* \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes
