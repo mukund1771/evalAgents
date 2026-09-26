@@ -4,10 +4,10 @@ import (
 	"sync"
 	"time"
 
-	"agenteval/internal/eval"
-	"agenteval/internal/scorer"
-	"agenteval/internal/store"
-	"agenteval/internal/target"
+	"github.com/mukund1771/evalAgents/internal/eval"
+	"github.com/mukund1771/evalAgents/internal/scorer"
+	"github.com/mukund1771/evalAgents/internal/store"
+	"github.com/mukund1771/evalAgents/internal/target"
 )
 
 func execute(cases []eval.Case, repeats, concurrency int, tgt target.Target, scorers []scorer.Scorer) []store.ResultRow {

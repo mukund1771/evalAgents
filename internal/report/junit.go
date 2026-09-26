@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"agenteval/internal/store"
+	"github.com/mukund1771/evalAgents/internal/store"
 )
 
 type testSuites struct {

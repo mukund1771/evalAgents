@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"agenteval/internal/eval"
-	"agenteval/internal/suite"
+	"github.com/mukund1771/evalAgents/internal/eval"
+	"github.com/mukund1771/evalAgents/internal/suite"
 )
 
 type scripted struct {

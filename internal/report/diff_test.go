@@ -3,7 +3,7 @@ package report
 import (
 	"testing"
 
-	"agenteval/internal/store"
+	"github.com/mukund1771/evalAgents/internal/store"
 )
 
 func TestCompareRegression(t *testing.T) {

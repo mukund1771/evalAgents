@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"agenteval/internal/eval"
+	"github.com/mukund1771/evalAgents/internal/eval"
 )
 
 func caseWith(exp any) eval.Case {

@@ -1,7 +1,7 @@
 // Package scorer grades a trajectory. Nil score values mean the scorer skipped.
 package scorer
 
-import "agenteval/internal/eval"
+import "github.com/mukund1771/evalAgents/internal/eval"
 
 // Scorer grades one case trajectory.
 type Scorer interface {

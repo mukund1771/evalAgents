@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"agenteval/internal/eval"
+	"github.com/mukund1771/evalAgents/internal/eval"
 )
 
 func main() {

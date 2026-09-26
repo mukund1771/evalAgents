@@ -3,7 +3,7 @@ package scorer
 import (
 	"fmt"
 
-	"agenteval/internal/suite"
+	"github.com/mukund1771/evalAgents/internal/suite"
 )
 
 // Build turns suite scorer specs into scorers.

@@ -5,7 +5,7 @@ import (
 	"math"
 	"testing"
 
-	"agenteval/internal/eval"
+	"github.com/mukund1771/evalAgents/internal/eval"
 )
 
 func toolStep(name, args string) eval.Step {

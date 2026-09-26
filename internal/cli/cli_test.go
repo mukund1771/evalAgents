@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"agenteval/internal/store"
+	"github.com/mukund1771/evalAgents/internal/store"
 )
 
 // cassette writes a trajectory that calls lookup_order once and answers.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"agenteval/internal/store"
+	"github.com/mukund1771/evalAgents/internal/store"
 )
 
 const meanEpsilon = 1e-9

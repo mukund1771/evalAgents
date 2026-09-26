@@ -1,4 +1,4 @@
-module agenteval
+module github.com/mukund1771/evalAgents
 
 go 1.22
 

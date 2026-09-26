@@ -4,7 +4,7 @@ package main
 import (
 	"os"
 
-	"agenteval/internal/cli"
+	"github.com/mukund1771/evalAgents/internal/cli"
 )
 
 func main() {

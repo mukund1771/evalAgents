@@ -6,7 +6,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"agenteval/internal/store"
+	"github.com/mukund1771/evalAgents/internal/store"
 )
 
 // Table writes a pass^k summary. A dash means the scorer skipped.

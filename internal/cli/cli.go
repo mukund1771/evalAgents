@@ -10,9 +10,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"agenteval/internal/report"
-	"agenteval/internal/runner"
-	"agenteval/internal/store"
+	"github.com/mukund1771/evalAgents/internal/report"
+	"github.com/mukund1771/evalAgents/internal/runner"
+	"github.com/mukund1771/evalAgents/internal/store"
 )
 
 // Run executes the CLI and returns a process exit code.

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"agenteval/internal/eval"
+	"github.com/mukund1771/evalAgents/internal/eval"
 )
 
 type placedCall struct {

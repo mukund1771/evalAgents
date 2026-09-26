@@ -1,6 +1,6 @@
 package target
 
-import "agenteval/internal/eval"
+import "github.com/mukund1771/evalAgents/internal/eval"
 
 // Replay scores trajectories recorded earlier. It does not execute an agent.
 type Replay struct {

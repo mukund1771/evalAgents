@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"agenteval/internal/eval"
+	"github.com/mukund1771/evalAgents/internal/eval"
 )
 
 type exactMatch struct {

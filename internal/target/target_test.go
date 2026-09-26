@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"agenteval/internal/eval"
+	"github.com/mukund1771/evalAgents/internal/eval"
 )
 
 func TestReplayMiss(t *testing.T) {

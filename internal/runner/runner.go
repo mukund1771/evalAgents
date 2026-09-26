@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"agenteval/internal/eval"
-	"agenteval/internal/judge"
-	"agenteval/internal/report"
-	"agenteval/internal/scorer"
-	"agenteval/internal/store"
-	"agenteval/internal/suite"
-	"agenteval/internal/target"
+	"github.com/mukund1771/evalAgents/internal/eval"
+	"github.com/mukund1771/evalAgents/internal/judge"
+	"github.com/mukund1771/evalAgents/internal/report"
+	"github.com/mukund1771/evalAgents/internal/scorer"
+	"github.com/mukund1771/evalAgents/internal/store"
+	"github.com/mukund1771/evalAgents/internal/suite"
+	"github.com/mukund1771/evalAgents/internal/target"
 )
 
 // Options controls one invocation of run.

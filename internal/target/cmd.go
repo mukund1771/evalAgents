@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"agenteval/internal/eval"
+	"github.com/mukund1771/evalAgents/internal/eval"
 )
 
 // Cmd spawns a binary. One JSON case goes in on stdin. One JSON trajectory

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"agenteval/internal/eval"
+	"github.com/mukund1771/evalAgents/internal/eval"
 
 	"gopkg.in/yaml.v3"
 )

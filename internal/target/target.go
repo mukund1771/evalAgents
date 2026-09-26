@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"agenteval/internal/eval"
+	"github.com/mukund1771/evalAgents/internal/eval"
 )
 
 // Target produces a trajectory for one case.
