@@ -266,3 +266,58 @@ func TestSplitArgsAllowsFlagsEitherSide(t *testing.T) {
 		t.Fatalf("flags = %#v", flags)
 	}
 }
+
+// demo and init are the two commands a downloaded binary is used with first, so
+// they are the two that must work with nothing on disk.
+func TestDemoRunsWithNothingOnDisk(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".agenteval")
+	var out, errb bytes.Buffer
+	if code := run([]string{"demo", "--root", root}, &out, &errb); code != 0 {
+		t.Fatalf("demo exit %d, want 0\nstderr: %s", code, errb.String())
+	}
+	if !strings.Contains(out.String(), "regression") {
+		t.Fatalf("demo did not reach the diff:\n%s", out.String())
+	}
+}
+
+func TestInitWritesTheExampleAndRefusesToClobber(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "myeval")
+	var out, errb bytes.Buffer
+	if code := run([]string{"init", dir}, &out, &errb); code != 0 {
+		t.Fatalf("init exit %d: %s", code, errb.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "suite.yaml")); err != nil {
+		t.Fatalf("suite.yaml not written: %v", err)
+	}
+	// The written suite has to actually run, or init handed over something broken.
+	out.Reset()
+	errb.Reset()
+	root := filepath.Join(t.TempDir(), ".agenteval")
+	if code := run([]string{"run", filepath.Join(dir, "suite.yaml"), "--root", root}, &out, &errb); code != 0 {
+		t.Fatalf("the written suite exits %d: %s", code, errb.String())
+	}
+
+	// A second init must not overwrite edits someone has made.
+	out.Reset()
+	errb.Reset()
+	if code := run([]string{"init", dir}, &out, &errb); code != 2 {
+		t.Fatalf("init over a non-empty dir exit %d, want 2", code)
+	}
+	if !strings.Contains(errb.String(), "not empty") {
+		t.Fatalf("init stderr = %s", errb.String())
+	}
+}
+
+func TestVersionIsReportable(t *testing.T) {
+	var out, errb bytes.Buffer
+	if code := run([]string{"version"}, &out, &errb); code != 0 {
+		t.Fatalf("version exit %d", code)
+	}
+	if strings.TrimSpace(out.String()) != Version {
+		t.Fatalf("version printed %q, want %q", out.String(), Version)
+	}
+	out.Reset()
+	if code := run([]string{"--version"}, &out, &errb); code != 0 || strings.TrimSpace(out.String()) != Version {
+		t.Fatalf("--version exit %d out %q", code, out.String())
+	}
+}

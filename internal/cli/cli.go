@@ -7,13 +7,19 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 
+	"github.com/mukund1771/evalAgents/internal/demo"
 	"github.com/mukund1771/evalAgents/internal/report"
 	"github.com/mukund1771/evalAgents/internal/runner"
 	"github.com/mukund1771/evalAgents/internal/store"
 )
+
+// Version is the build's version, set from main via -ldflags. A binary someone
+// downloaded needs to be able to say what it is.
+var Version = "dev"
 
 // Run executes the CLI and returns a process exit code.
 func Run(args []string) int {
@@ -34,6 +40,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdList(args[1:], stdout, stderr)
 	case "show":
 		return cmdShow(args[1:], stdout, stderr)
+	case "demo":
+		return cmdDemo(args[1:], stdout, stderr)
+	case "init":
+		return cmdInit(args[1:], stdout, stderr)
+	case "version", "--version":
+		fmt.Fprintln(stdout, Version)
+		return 0
 	case "-h", "--help", "help":
 		fmt.Fprint(stdout, usage)
 		return 0
@@ -51,6 +64,9 @@ const usage = `agenteval — local agent evaluation
   agenteval diff <run_a> <run_b> [--root dir]
   agenteval list [--root dir]
   agenteval show <run_id> [--case id] [--root dir]
+  agenteval demo [--root dir]            run the embedded example, then diff it
+  agenteval init [dir]                   write the example out so you can edit it
+  agenteval version
 
 Runs are written to .agenteval/runs/<run_id>/. A nil score means skipped, not zero.
 Exit 1 when a case fails or a baseline regresses.
@@ -262,6 +278,50 @@ func cmdShow(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "case %s not in run %s\n", *caseID, positionals[0])
 		return 2
 	}
+	return 0
+}
+
+func cmdDemo(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("demo", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	root := fs.String("root", ".agenteval", "run store root")
+	positionals, flagArgs := splitArgs(args, nil)
+	if err := fs.Parse(flagArgs); err != nil {
+		return 2
+	}
+	if len(positionals) != 0 {
+		fmt.Fprintln(stderr, "usage: agenteval demo")
+		return 2
+	}
+	return demo.Run(*root, stdout, stderr)
+}
+
+func cmdInit(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("init", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	positionals, flagArgs := splitArgs(args, nil)
+	if err := fs.Parse(flagArgs); err != nil {
+		return 2
+	}
+	dir := "agenteval-example"
+	if len(positionals) == 1 {
+		dir = positionals[0]
+	} else if len(positionals) > 1 {
+		fmt.Fprintln(stderr, "usage: agenteval init [dir]")
+		return 2
+	}
+	// Refuse a directory with anything in it. Extract overwrites, and silently
+	// clobbering a suite someone has been editing is not a recoverable mistake.
+	if entries, err := os.ReadDir(dir); err == nil && len(entries) > 0 {
+		fmt.Fprintf(stderr, "%s is not empty\n", dir)
+		return 2
+	}
+	if err := demo.Extract(dir); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	fmt.Fprintf(stdout, "wrote the example to %s\n\n  agenteval run %s\n",
+		dir, filepath.Join(dir, demo.SuitePath))
 	return 0
 }
 
