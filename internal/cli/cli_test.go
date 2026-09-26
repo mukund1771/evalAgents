@@ -321,3 +321,37 @@ func TestVersionIsReportable(t *testing.T) {
 		t.Fatalf("--version exit %d out %q", code, out.String())
 	}
 }
+
+// The TUI needs a terminal, so this cannot launch one. It can still prove the
+// subcommand is reachable, parses its flags, and refuses a pipe with advice
+// rather than a panic.
+func TestTuiSubcommandIsWired(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".agenteval")
+	var out, errb bytes.Buffer
+
+	if code := run([]string{"tui", "--root", root}, &out, &errb); code != 2 {
+		t.Fatalf("tui against a buffer exit %d, want 2", code)
+	}
+	if !strings.Contains(errb.String(), "needs a terminal") {
+		t.Fatalf("tui stderr = %q", errb.String())
+	}
+
+	errb.Reset()
+	if code := run([]string{"tui", "extra"}, &out, &errb); code != 2 {
+		t.Fatalf("tui with a positional exit %d, want 2", code)
+	}
+	if !strings.Contains(errb.String(), "usage: agenteval tui") {
+		t.Fatalf("tui usage = %q", errb.String())
+	}
+
+	// Every new subcommand has to be discoverable from --help.
+	out.Reset()
+	if code := run([]string{"--help"}, &out, &errb); code != 0 {
+		t.Fatalf("help exit %d", code)
+	}
+	for _, want := range []string{"agenteval tui", "agenteval demo", "agenteval init", "agenteval version"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("help does not mention %q:\n%s", want, out.String())
+		}
+	}
+}

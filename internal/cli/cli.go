@@ -15,6 +15,7 @@ import (
 	"github.com/mukund1771/evalAgents/internal/report"
 	"github.com/mukund1771/evalAgents/internal/runner"
 	"github.com/mukund1771/evalAgents/internal/store"
+	"github.com/mukund1771/evalAgents/internal/tui"
 )
 
 // Version is the build's version, set from main via -ldflags. A binary someone
@@ -40,6 +41,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdList(args[1:], stdout, stderr)
 	case "show":
 		return cmdShow(args[1:], stdout, stderr)
+	case "tui":
+		return cmdTui(args[1:], stdout, stderr)
 	case "demo":
 		return cmdDemo(args[1:], stdout, stderr)
 	case "init":
@@ -64,6 +67,7 @@ const usage = `agenteval — local agent evaluation
   agenteval diff <run_a> <run_b> [--root dir]
   agenteval list [--root dir]
   agenteval show <run_id> [--case id] [--root dir]
+  agenteval tui [--root dir]             browse stored runs, read-only
   agenteval demo [--root dir]            run the embedded example, then diff it
   agenteval init [dir]                   write the example out so you can edit it
   agenteval version
@@ -276,6 +280,28 @@ func cmdShow(args []string, stdout, stderr io.Writer) int {
 	}
 	if !found {
 		fmt.Fprintf(stderr, "case %s not in run %s\n", *caseID, positionals[0])
+		return 2
+	}
+	return 0
+}
+
+// cmdTui exits 0 on a clean quit and 2 on a bad argument or a failure to start.
+// Never 1: run and diff own the "1 means regression" contract, and an inspector
+// returning 1 would break an && chain and mislead a CI job.
+func cmdTui(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("tui", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	root := fs.String("root", ".agenteval", "run store root")
+	positionals, flagArgs := splitArgs(args, nil)
+	if err := fs.Parse(flagArgs); err != nil {
+		return 2
+	}
+	if len(positionals) != 0 {
+		fmt.Fprintln(stderr, "usage: agenteval tui")
+		return 2
+	}
+	if err := tui.Run(*root, stdout); err != nil {
+		fmt.Fprintln(stderr, err)
 		return 2
 	}
 	return 0
