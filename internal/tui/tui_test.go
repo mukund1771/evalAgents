@@ -401,6 +401,39 @@ func TestDiffAlwaysUsesTheOlderRunAsBaseline(t *testing.T) {
 	}
 }
 
+// The gutter said A for whichever run was marked first while the diff used the
+// older run as baseline, so the list claimed A -> B and the report did the
+// opposite. Both now read from diffPair, and this is what keeps them together.
+func TestMarkLabelsMatchTheDiffDirection(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".agenteval")
+	good, bad := twoRuns(t, root)
+	m := newTestModel(t, root)
+
+	// Cursor starts on the newest run, so the newer one is marked first.
+	m, _ = drive(t, m, " ", "j", " ")
+	if got := m.markOf(good); got != "A" {
+		t.Fatalf("older run %s labelled %q, want A (the baseline)", good, got)
+	}
+	if got := m.markOf(bad); got != "B" {
+		t.Fatalf("newer run %s labelled %q, want B (the candidate)", bad, got)
+	}
+
+	// And the label has to name the run the comparison really uses.
+	m, _ = drive(t, m, "d")
+	if m.diff.Baseline != good || m.diff.Current != bad {
+		t.Fatalf("diff %s -> %s but gutter said A=%s B=%s",
+			m.diff.Baseline, m.diff.Current, good, bad)
+	}
+
+	// The mark must not collide with the run id in the gutter.
+	body, _ := m.runsBody()
+	for _, line := range strings.Split(body, "\n") {
+		if i := strings.Index(line, good); i > 0 && line[i-1] != ' ' {
+			t.Fatalf("mark runs into the run id: %q", line)
+		}
+	}
+}
+
 func TestDiffNeedsTwoMarksAndSaysSo(t *testing.T) {
 	root := filepath.Join(t.TempDir(), ".agenteval")
 	twoRuns(t, root)
