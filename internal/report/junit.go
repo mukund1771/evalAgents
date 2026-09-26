@@ -40,7 +40,16 @@ func WriteJUnit(path string, sum store.Summary) error {
 	for _, c := range sum.Cases {
 		xs.Tests++
 		tc := xmlCase{Name: c.ID, Class: sum.Suite}
-		if !c.Passed {
+		switch {
+		case len(c.Means) == 0:
+			// Every scorer skipped, so nothing was graded. Reporting that as a
+			// failure is indistinguishable in a CI UI from an assertion that
+			// actually ran and was wrong, which is the more useful signal to keep
+			// distinct. Means only holds names that applied.
+			xs.Skipped++
+			msg := "no scorer applied to this case"
+			tc.Skipped = &xmlMsg{Message: msg, Body: msg}
+		case !c.Passed:
 			xs.Failures++
 			msg := "case failed"
 			if len(c.Failed) > 0 {

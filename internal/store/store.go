@@ -186,33 +186,45 @@ func LoadResults(root, id string) ([]ResultRow, error) {
 	return rows, sc.Err()
 }
 
-// List returns manifests, newest first.
-func List(root string) ([]Manifest, error) {
+// List returns manifests, newest first, plus the ids of runs whose manifest
+// would not load.
+//
+// Those used to be dropped with a bare continue, so a run killed mid-write
+// vanished from both `agenteval list` and the browser with exit code 0. A run
+// that exists but cannot be read is a different thing from a run that does not
+// exist, and only the caller can decide how loudly to say so.
+func List(root string) ([]Manifest, []string, error) {
 	entries, err := os.ReadDir(filepath.Join(root, "runs"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return nil, nil, nil
 		}
-		return nil, err
+		return nil, nil, err
 	}
 	var out []Manifest
+	var unreadable []string
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
 		m, err := LoadManifest(root, e.Name())
 		if err != nil {
+			unreadable = append(unreadable, e.Name())
 			continue
 		}
 		out = append(out, m)
 	}
-	// Stable with an id tie-break: a --matrix sweep writes runs inside the same
-	// second, and callers index [0] as "the newest".
+	sort.Strings(unreadable)
+	// Newest first by StartedAt, which is nanosecond-precision, so a tie is
+	// essentially unreachable. The id tie-break exists only to make the order
+	// total and reproducible when one does happen — an id ends in three random
+	// bytes, so it is stable but NOT chronological, and [0] is "the newest" by
+	// time alone.
 	sort.SliceStable(out, func(i, j int) bool {
 		if !out[i].StartedAt.Equal(out[j].StartedAt) {
 			return out[i].StartedAt.After(out[j].StartedAt)
 		}
 		return out[i].ID > out[j].ID
 	})
-	return out, nil
+	return out, unreadable, nil
 }

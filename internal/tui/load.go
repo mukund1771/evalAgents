@@ -40,11 +40,11 @@ type resultsMsg struct {
 
 func loadRuns(root string) tea.Cmd {
 	return func() tea.Msg {
-		mans, err := store.List(root)
+		mans, unreadable, err := store.List(root)
 		if err != nil {
 			return runsMsg{err: err}
 		}
-		rows := make([]runRow, 0, len(mans))
+		rows := make([]runRow, 0, len(mans)+len(unreadable))
 		for _, m := range mans {
 			row := runRow{man: m}
 			sum, err := store.LoadSummary(root, m.ID)
@@ -54,6 +54,15 @@ func loadRuns(root string) tea.Cmd {
 				row.sum = sum
 			}
 			rows = append(rows, row)
+		}
+		// A run whose manifest will not parse still gets a row. It has no suite
+		// or start time to show, but a run that is on disk and unreadable is
+		// worth seeing, and the list is the only place it could appear.
+		for _, id := range unreadable {
+			rows = append(rows, runRow{
+				man: store.Manifest{ID: id},
+				err: "manifest.json will not parse",
+			})
 		}
 		return runsMsg{rows: rows}
 	}

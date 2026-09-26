@@ -178,3 +178,85 @@ func TestRenderSpannedMarksOnlyTheNamedBytes(t *testing.T) {
 		t.Fatalf("output = %q, want %q", out, want)
 	}
 }
+
+// unicode.IsControl covers only category Cc, so the bidi overrides in Cf used to
+// pass through the function documented as sanitising every untrusted string.
+func TestPrintableRejectsBidiAndFormatRunes(t *testing.T) {
+	for _, r := range []rune{'‮', '‭', '‏', '‎', '⁦', '⁩', '\x1b', '\x00', utf8.RuneError} {
+		if printable(r) {
+			t.Fatalf("printable(%U) = true, want false", r)
+		}
+	}
+	for _, r := range []rune{'a', ' ', 'é', '漢', '😀'} {
+		if !printable(r) {
+			t.Fatalf("printable(%U) = false, want true", r)
+		}
+	}
+	// A reversed verdict is the failure this protects against.
+	out := renderSpanned("verdict: ‮dessap", nil, 80, plainStyles())
+	if strings.ContainsRune(out, '‮') {
+		t.Fatalf("bidi override survived: %q", out)
+	}
+}
+
+// safeLabel guards the short identifiers that carry no spans: a newline in one of
+// them used to make the runs table emit more lines than there were runs.
+func TestSafeLabelIsOneLineOfPrintableText(t *testing.T) {
+	got := safeLabel("sup\nport\ragent\tv2\x1b[2J‮")
+	if strings.ContainsAny(got, "\n\r\t\x1b") || strings.ContainsRune(got, '‮') {
+		t.Fatalf("safeLabel left something dangerous: %q", got)
+	}
+	if got != "sup port agent v2?[2J?" {
+		t.Fatalf("safeLabel = %q", got)
+	}
+	if safeLabel("plain-id") != "plain-id" {
+		t.Fatal("safeLabel altered a clean string")
+	}
+}
+
+// A span that merely touched a line break used to render as "[[]]", and a span
+// covering only a newline rendered as two empty pairs and nothing else.
+func TestNoEmptyMarkersAroundNewlines(t *testing.T) {
+	st := plainStyles()
+	const content = "ab\ncd"
+	for _, tc := range []struct{ lo, hi int }{
+		{0, 3}, // ends at the newline
+		{2, 5}, // starts at the newline
+		{2, 3}, // the newline alone, which is what stepSpan can produce
+		{0, 5}, // spans the break, and should be marked on both lines
+	} {
+		out := renderSpanned(content, mustIntervals(t, content, tc.lo, tc.hi), 40, st)
+		if strings.Contains(out, evidenceOpen+evidenceClose) {
+			t.Fatalf("[%d,%d) produced an empty marker pair: %q", tc.lo, tc.hi, out)
+		}
+	}
+	// The multi-line span still marks both lines.
+	out := renderSpanned(content, mustIntervals(t, content, 0, 5), 40, st)
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.Contains(line, evidenceOpen) {
+			t.Fatalf("multi-line span lost a line's mark: %q", out)
+		}
+	}
+}
+
+func mustIntervals(t *testing.T, content string, lo, hi int) []interval {
+	t.Helper()
+	keep, bad := spanIntervals(content, []eval.Span{span(0, lo, hi)}, 0)
+	if len(bad) != 0 {
+		t.Fatalf("[%d,%d) refused: %#v", lo, hi, bad)
+	}
+	return keep
+}
+
+func TestClipStaysWithinWidth(t *testing.T) {
+	if got := clip("abcdefghij", 5); lipgloss.Width(got) > 5 {
+		t.Fatalf("clip = %q, %d cells", got, lipgloss.Width(got))
+	}
+	if got := clip("abc", 10); got != "abc" {
+		t.Fatalf("clip shortened a fitting string: %q", got)
+	}
+	// Wide runes count as two cells.
+	if got := clip("漢漢漢漢", 5); lipgloss.Width(got) > 5 {
+		t.Fatalf("clip = %q, %d cells", got, lipgloss.Width(got))
+	}
+}

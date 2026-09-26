@@ -1,7 +1,9 @@
 name: support-agent-live
 target:
   kind: cmd
-  command: ["go", "run", "./agent"]
+  # Python on purpose: the cmd target exists so your agent does not have to
+  # be written in Go. Needs only a python3 on PATH.
+  command: ["python3", "agent.py"]
   timeout: 60s
   cassettes: cassettes
 scorers:

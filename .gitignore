@@ -2,3 +2,4 @@
 .agenteval/
 /dist/
 .demo-runs/
+.init-runs/

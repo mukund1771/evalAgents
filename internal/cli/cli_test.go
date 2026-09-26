@@ -93,7 +93,7 @@ func TestEndToEnd(t *testing.T) {
 	}
 
 	// Newest first, so [0] is the regressed run.
-	mans, err := store.List(root)
+	mans, _, err := store.List(root)
 	if err != nil || len(mans) != 2 {
 		t.Fatalf("list = %#v err %v", mans, err)
 	}
@@ -184,7 +184,7 @@ func TestBaselineGate(t *testing.T) {
 	if code := run([]string{"run", suiteFile(t, dir, "green", "good", "alpha", "beta"), "--root", root}, &out, &errb); code != 0 {
 		t.Fatalf("green run exit %d: %s", code, errb.String())
 	}
-	mans, err := store.List(root)
+	mans, _, err := store.List(root)
 	if err != nil || len(mans) != 1 {
 		t.Fatalf("list = %#v err %v", mans, err)
 	}
@@ -353,5 +353,58 @@ func TestTuiSubcommandIsWired(t *testing.T) {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("help does not mention %q:\n%s", want, out.String())
 		}
+	}
+}
+
+// ReadDir on a regular file returns ENOTDIR, which the old guard read as "empty".
+func TestInitRefusesAPathThatIsNotADirectory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "afile")
+	if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	if code := run([]string{"init", path}, &out, &errb); code != 2 {
+		t.Fatalf("init onto a file exit %d, want 2", code)
+	}
+	if !strings.Contains(errb.String(), "not a directory") {
+		t.Fatalf("stderr = %q", errb.String())
+	}
+}
+
+// Compare treats its first argument as the baseline, so reversed arguments report
+// a real regression as "no regressions" and exit 0. Run ids sort chronologically,
+// so the CLI can at least say the pair looks backwards.
+func TestDiffWarnsWhenTheArgumentsAreReversed(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, ".agenteval")
+	for _, id := range []string{"alpha", "beta"} {
+		cassette(t, filepath.Join(dir, id), "alpha", "lookup_order", "shipped")
+	}
+	cassette(t, filepath.Join(dir, "beta"), "alpha", "guess_order", "shipped")
+
+	var out, errb bytes.Buffer
+	if code := run([]string{"run", suiteFile(t, dir, "good", "alpha", "alpha"), "--root", root}, &out, &errb); code != 0 {
+		t.Fatalf("good run exit %d: %s", code, errb.String())
+	}
+	if code := run([]string{"run", suiteFile(t, dir, "bad", "beta", "alpha"), "--root", root}, &out, &errb); code != 1 {
+		t.Fatalf("bad run exit %d, want 1", code)
+	}
+	mans, _, err := store.List(root)
+	if err != nil || len(mans) != 2 {
+		t.Fatalf("list = %#v err %v", mans, err)
+	}
+	newest, oldest := mans[0].ID, mans[1].ID
+
+	errb.Reset()
+	out.Reset()
+	// Deliberately backwards.
+	run([]string{"diff", newest, oldest, "--root", root}, &out, &errb)
+	if !strings.Contains(errb.String(), "compares backwards") {
+		t.Fatalf("no warning for a reversed pair: %q", errb.String())
+	}
+	errb.Reset()
+	run([]string{"diff", oldest, newest, "--root", root}, &out, &errb)
+	if strings.Contains(errb.String(), "compares backwards") {
+		t.Fatalf("warned on a correctly ordered pair: %q", errb.String())
 	}
 }

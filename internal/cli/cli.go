@@ -184,6 +184,19 @@ func cmdDiff(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
+	// Compare treats its first argument as the baseline, and reversed it reports
+	// a real regression as "no regressions" and exits 0 — worth saying out loud.
+	// The times come from the manifests rather than from the ids: a run id is
+	// only chronological to the second, and within one second it ends in three
+	// random bytes, so comparing ids as strings is not a chronology test.
+	if bm, err := store.LoadManifest(*root, positionals[0]); err == nil {
+		if cm, err := store.LoadManifest(*root, positionals[1]); err == nil {
+			if bm.StartedAt.After(cm.StartedAt) {
+				fmt.Fprintf(stderr, "warning: %s is newer than %s, so this compares "+
+					"backwards; the baseline goes first\n", positionals[0], positionals[1])
+			}
+		}
+	}
 	d := report.Compare(base, cur)
 	fmt.Fprint(stdout, report.FormatDiff(d))
 	if len(d.Regressions) > 0 {
@@ -204,10 +217,15 @@ func cmdList(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "usage: agenteval list")
 		return 2
 	}
-	mans, err := store.List(*root)
+	mans, unreadable, err := store.List(*root)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
+	}
+	for _, id := range unreadable {
+		// Named on stderr rather than dropped: a run that exists and cannot be
+		// read is not the same as a run that is not there.
+		fmt.Fprintf(stderr, "warning: run %s has an unreadable manifest\n", id)
 	}
 	if len(mans) == 0 {
 		fmt.Fprintln(stdout, "no runs")
@@ -338,6 +356,12 @@ func cmdInit(args []string, stdout, stderr io.Writer) int {
 	}
 	// Refuse a directory with anything in it. Extract overwrites, and silently
 	// clobbering a suite someone has been editing is not a recoverable mistake.
+	// ReadDir on a regular file returns ENOTDIR, which the old err == nil guard
+	// read as "empty" and fell through to a raw mkdir error.
+	if fi, err := os.Stat(dir); err == nil && !fi.IsDir() {
+		fmt.Fprintf(stderr, "%s is not a directory\n", dir)
+		return 2
+	}
 	if entries, err := os.ReadDir(dir); err == nil && len(entries) > 0 {
 		fmt.Fprintf(stderr, "%s is not empty\n", dir)
 		return 2
